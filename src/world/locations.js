@@ -1,5 +1,5 @@
 // Each location recolours the street and decides which walls, side props,
-// ground details and animals show up. Weights are relative.
+// ground details, things overhead and animals show up. Weights are relative.
 export const LOCATIONS = {
   town: {
     key: 'town',
@@ -11,8 +11,9 @@ export const LOCATIONS = {
     ripple: ['#62e2ff', '#36bdf0', '#2c96c8'],
     wall: 'brick',
     pattern: 'none',
-    side: { fern: 3, tuft: 3, pot: 2, lamp: 1 },
+    side: { lamp: 3, bush: 2, tuft: 3, pot: 3, fern: 1 },
     floor: { manhole: 2, drain: 3, cobbles: 3 },
+    overhead: { bridge: 2, bunting: 1 },
     animals: { pigeon: 3, cat: 2, ducks: 1 },
   },
   park: {
@@ -25,9 +26,25 @@ export const LOCATIONS = {
     ripple: ['#6cf2dc', '#3fd0bd', '#2ea69a'],
     wall: 'hedge',
     pattern: 'none',
-    side: { tree: 2, fern: 3, tuft: 4, pot: 1 },
+    side: { tree: 2, bigtree: 1, bush: 4, tuft: 3, pot: 1 },
     floor: { leaves: 5, drain: 1 },
+    overhead: { branches: 1 },
     animals: { ducks: 3, frog: 3, snail: 2 },
+  },
+  forest: {
+    key: 'forest',
+    name: 'DEEP FOREST',
+    ground: '#2c5a4c',
+    line: '#285245',
+    puddle: '#3a4a3a',
+    shadow: '#21463b',
+    ripple: ['#7ee8c8', '#4cc4a4', '#3a9a80'],
+    wall: 'forest',
+    pattern: 'none',
+    side: { bigtree: 3, fern: 3, mushroom: 3, log: 2, tuft: 2 },
+    floor: { mud: 5, leaves: 3 },
+    overhead: { branches: 3 },
+    animals: { fox: 3, frog: 2, snail: 2 },
   },
   market: {
     key: 'market',
@@ -39,8 +56,9 @@ export const LOCATIONS = {
     ripple: ['#86e8ff', '#52c2f2', '#3c99d0'],
     wall: 'shop',
     pattern: 'tiles',
-    side: { crate: 3, pot: 3, tuft: 1 },
+    side: { crate: 3, pot: 3, lamp: 1, tuft: 1 },
     floor: { manhole: 2, drain: 2 },
+    overhead: { bunting: 3 },
     animals: { cat: 3, pigeon: 3 },
   },
   harbor: {
@@ -53,10 +71,11 @@ export const LOCATIONS = {
     ripple: ['#8eeaff', '#55c4ea', '#3f9cc4'],
     wall: 'rail',
     pattern: 'planks',
-    side: { lamp: 2, crate: 2, tuft: 1 },
+    side: { lamp: 3, crate: 2, tuft: 1 },
     floor: { drain: 1 },
+    overhead: { bridge: 2 },
     animals: { gull: 4, cat: 2 },
   },
 };
 
-export const LOCATION_ORDER = ['town', 'park', 'market', 'harbor'];
+export const LOCATION_ORDER = ['town', 'park', 'forest', 'market', 'harbor'];

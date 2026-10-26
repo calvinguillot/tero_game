@@ -208,11 +208,14 @@ export class AudioEngine {
     [0, 7, 12].forEach((n, i) => this.tone({ type: 'sine', f0: semis(784, n), dur: 0.4, vol: 0.08, at: i * 0.12 }));
   }
 
+  // A sharp crack with the flash, then the rumble rolling in.
   thunder(soft) {
-    const at = rand(0.25, 1.1);
-    const v = soft ? 0.35 : 0.6;
-    if (at < 0.5) this.noise({ type: 'highpass', f0: 1800, dur: 0.15, vol: v * 0.4, at, dest: this.amb });
-    this.noise({ type: 'lowpass', f0: 500, f1: 60, dur: 2.6, vol: v, attack: 0.08, at, dest: this.amb });
+    const v = soft ? 0.5 : 0.9;
+    this.noise({ type: 'highpass', f0: 2200, f1: 900, dur: 0.25, vol: v * 0.5, dest: this.amb });
+    this.noise({ type: 'lowpass', f0: 900, f1: 120, dur: 0.6, vol: v * 0.7, attack: 0.01, at: 0.05, dest: this.amb });
+    const at = rand(0.2, 0.6);
+    this.noise({ type: 'lowpass', f0: 420, f1: 50, dur: 3, vol: v, attack: 0.12, at, dest: this.amb });
+    this.tone({ type: 'sine', f0: 55, f1: 32, dur: 2.4, vol: v * 0.5, attack: 0.2, at, dest: this.amb });
   }
 
   rushStart() {

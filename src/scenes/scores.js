@@ -55,9 +55,12 @@ export class ScoresScene {
         const col = top ? PAL.text : PAL.textDim;
         drawText(ctx, `${i + 1}.`, 22, y + 2, col, { shadow: PAL.textShadow });
         drawText(ctx, e.name || '---', 36, y + 2, top ? '#ffffff' : PAL.text, { shadow: PAL.textShadow });
-        drawText(ctx, e.score, 102, y, top ? '#ffffff' : PAL.text, { shadow: PAL.textShadow, scale: 2, align: 'right' });
+        drawText(ctx, e.score, 98, y, top ? '#ffffff' : PAL.text, { shadow: PAL.textShadow, scale: 2, align: 'right' });
+        // The run's CLOSE! count, small, beside the score.
+        if (e.closes != null) drawText(ctx, e.closes, 102, y + 5, PAL.rippleMid, { shadow: PAL.textShadow });
         drawText(ctx, e.date.slice(2), 158, y + 2, col, { shadow: PAL.textShadow, align: 'right' });
       });
+      drawText(ctx, 'SMALL BLUE NUMBER: CLOSE! COUNT', 90, 202, PAL.rippleMid, opt);
       hint(ctx, 'LEFT/RIGHT: LEVEL   ESC: BACK', 214);
     });
   }

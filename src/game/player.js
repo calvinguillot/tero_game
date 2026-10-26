@@ -27,6 +27,7 @@ export class Player {
     this.style = style;
     this.shieldT = 0; // brief collision immunity while the force field fires
     this.rush = false; // SUN RUSH: running, untouchable
+    this.pitch = 0;
     this.handle = 'j';
     this.open = 1;
     this.inv = false;
@@ -68,8 +69,10 @@ export class Player {
       this.hitT -= dt;
       k *= 0.35;
     }
-    // During a SUN RUSH you run: faster, with a trail of sparkles.
-    const max = MAX_SPEED * (this.rush ? 1.35 : 1);
+    // During a SUN RUSH you run: faster, umbrella shut, trailing sparkles.
+    // On Hard, wading through puddles and mud slows you a little.
+    let max = MAX_SPEED * (this.rush ? 1.35 : 1);
+    if (world.wetSlow < 1 && !this.rush && world.isWet(this.x, this.y + 13)) max *= world.wetSlow;
     this.vx += (a.x * max - this.vx) * k;
     this.vy += (a.y * max - this.vy) * k;
     // Wind pushes the umbrella like a sail.
@@ -78,6 +81,9 @@ export class Player {
     if (this.rush && Math.random() < 0.6) {
       world.burst(this.x + rand(-6, 6), this.y + 12, 1, UMBRELLA_COLORS[this.color].light, 25);
     }
+    this.open += clamp((this.rush ? 0.3 : 1) - this.open, -dt * 4, dt * 3);
+    // Lean into the walk: forward when going up the street, back when going down.
+    this.pitch += (clamp(-this.vy / 35, -2, 2) - this.pitch) * Math.min(1, dt * 10);
 
     const lo = GROUND_L + this.r * 0.8;
     const hi = GROUND_R - this.r * 0.8;

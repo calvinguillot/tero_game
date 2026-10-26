@@ -41,6 +41,17 @@ const KINDS = {
     animRate: 12,
     startle: 'dash',
   },
+  // Trots across the forest road with its white-tipped tail up.
+  fox: {
+    frames: [
+      ['........d.d.', '........ddd.', 'w.......dyd.', '.d.dddddddd.', '..dDDDDDdd..', '..k.k...k.k.'],
+      ['........d.d.', '........ddd.', 'w.......dyd.', '.d.dddddddd.', '..dDDDDDdd..', '...kk...kk..'],
+    ],
+    colors: { d: '#e07a30', D: '#f2e4d0', y: '#20140a', w: '#f4ece0', k: '#3a2418' },
+    speed: 45,
+    animRate: 10,
+    startle: 'dash',
+  },
   duck: {
     frames: DUCK_ROWS,
     colors: { w: '#f4f6f2', s: '#c3ced3', k: '#1a2630', o: '#f0a030' },

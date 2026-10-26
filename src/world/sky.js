@@ -62,7 +62,10 @@ export class Sky {
     this.warn = 0; // direction of an incoming gust while warning, else 0
     this.gusting = 0;
     this.flash = 0;
-    this.strikeT = rand(5, 10);
+    this.strikeT = rand(2, 5);
+    this.bolt = null; // pixels of the last lightning bolt
+    this.forceDay = false;
+    this.dayBlend = 0;
     this.events = []; // 'weather', 'thunder', 'gust' — read and cleared by the scene
   }
 
@@ -127,13 +130,17 @@ export class Sky {
     }
     this.wind += (target - this.wind) * Math.min(1, dt * 2.5);
 
-    // Lightning: a double flicker every so often during storms.
-    this.flash = Math.max(0, this.flash - dt * 4);
+    // Lightning: a bolt into the street and a double flash, every few seconds in storms.
+    this.flash = Math.max(0, this.flash - dt * 2.5);
     if (this.p.lightning > 0.5 && (this.strikeT -= dt) <= 0) {
-      this.strikeT = rand(6, 12);
+      this.strikeT = rand(4, 8);
       this.flash = 1;
+      this.bolt = makeBolt(rand(30, PF_W - 30), rand(40, 130));
       this.events.push('thunder');
     }
+
+    // A SUN RUSH brings out the daylight whatever the hour, then lets it go.
+    this.dayBlend = clamp(this.dayBlend + (this.forceDay ? dt / 0.6 : -dt / 2), 0, 1);
   }
 
   takeEvents() {
@@ -155,8 +162,11 @@ export class Sky {
     const a = DAY[i];
     const b = DAY[i + 1];
     const k = (this.time - a.t) / (b.t - a.t);
-    // Clouds grey the light, a little less in the blue.
-    return a.tint.map((c, j) => Math.round(lerp(c, b.tint[j], k) * (1 - this.p.clouds * (j === 2 ? 0.28 : 0.4))));
+    // Clouds grey the light, a little less in the blue; a rush pulls it to full day.
+    return a.tint.map((c, j) => {
+      const hour = lerp(lerp(c, b.tint[j], k), 255, this.dayBlend);
+      return Math.round(hour * (1 - this.p.clouds * (j === 2 ? 0.28 : 0.4)));
+    });
   }
 
   // 0 in daylight, 1 in the dead of night.
@@ -192,14 +202,45 @@ export class Sky {
 
   drawFlash(ctx, soft) {
     if (this.flash <= 0) return;
-    // Two quick pulses.
-    const on = this.flash > 0.75 || (this.flash > 0.35 && this.flash < 0.55);
+    // The bolt shows for the first moment, with a glow along it.
+    if (this.flash > 0.6 && this.bolt) {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = soft ? '#3a4a66' : '#5a6e9a';
+      for (const [x, y] of this.bolt) ctx.fillRect(x - 1, y, 3, 1);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = '#ffffff';
+      for (const [x, y] of this.bolt) ctx.fillRect(x, y, 1, 1);
+    }
+    // Two pulses of light over the whole street.
+    const on = this.flash > 0.8 || (this.flash > 0.45 && this.flash < 0.62);
     if (!on) return;
     ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = `rgba(220, 230, 255, ${soft ? 0.15 : 0.45})`;
+    ctx.fillStyle = `rgba(220, 230, 255, ${soft ? 0.18 : 0.6})`;
     ctx.fillRect(0, 0, PF_W, PF_H);
     ctx.globalCompositeOperation = 'source-over';
   }
+}
+
+// A jagged bolt from the top of the screen down to (x, y), as a list of
+// pixels, with a short fork part-way down.
+function makeBolt(x, y) {
+  const px = [];
+  let cx = x + rand(-30, 30);
+  const line = (x0, y0, x1, y1) => {
+    const n = Math.max(1, Math.abs(y1 - y0));
+    for (let i = 0; i <= n; i++) px.push([Math.round(lerp(x0, x1, i / n)), Math.round(lerp(y0, y1, i / n))]);
+  };
+  const steps = 6;
+  let cy = -4;
+  for (let i = 1; i <= steps; i++) {
+    const ny = lerp(-4, y, i / steps);
+    const nx = i === steps ? x : lerp(cx, x, i / steps) + rand(-10, 10);
+    line(cx, cy, nx, ny);
+    if (i === 3) line(nx, ny, nx + rand(-18, 18), ny + rand(12, 24));
+    cx = nx;
+    cy = ny;
+  }
+  return px;
 }
 
 // Ordered-dither haze, densest at the top of the street (where walkers come from).

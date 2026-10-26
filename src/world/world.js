@@ -26,6 +26,7 @@ export class World {
     this.lowFx = lowFx; // skips reflections and drips, halves spray
     this.sky = sky || new Sky();
     this.softFlash = false; // gentler lightning (accessibility)
+    this.wetSlow = 1; // speed factor in puddles and mud (Hard: < 1)
     this.drips = [];
     this.refl = null;
     this.t = 0;
@@ -167,6 +168,11 @@ export class World {
     });
   }
 
+  // Standing water or mud (they slow you down on Hard).
+  isWet(x, y) {
+    return this.inPuddle(x, y) || this.decor.inMud(x, y);
+  }
+
   update(dt) {
     this.t += dt;
     const sc = this.speed * dt;
@@ -280,6 +286,11 @@ export class World {
         return;
       }
     }
+    // Bridges, branches and tree crowns keep the street under them dry.
+    if (this.decor.shelters(x, y)) {
+      if (!far) this.splash(x, y, 1, PAL.splash, true, 30);
+      return;
+    }
     for (const u of this.umbrellas) {
       if (canopyContains(u, x, y)) {
         this.splash(x, y, 2, PAL.splash, true, 40);
@@ -376,11 +387,19 @@ export class World {
       ctx.fillStyle = '#ffe9a0';
       ctx.fillRect(Math.round(l.x) - 1, Math.round(l.y), 3, 1);
     }
-    // Fireflies, mostly in the park.
+    // Bunting bulbs.
+    for (const b of this.decor.bulbs()) {
+      ctx.globalAlpha = night;
+      ctx.drawImage(ellipseSprite(3, 2, '#5a4418', true), b.x - 3, b.y - 2);
+      ctx.fillStyle = '#fff2c0';
+      ctx.fillRect(b.x, b.y, 1, 1);
+    }
+    // Fireflies, mostly in the park and the forest.
     ctx.fillStyle = '#e8ff8a';
     for (let i = 0; i < 12; i++) {
       const y = ((i * 71 + this.scrollY * 0.6 + Math.cos(this.t * 0.5 + i * 2) * 10) % (PF_H + 20)) - 10;
-      if (i >= 4 && this.locAt(y).key !== 'park') continue;
+      const where = this.locAt(y).key;
+      if (i >= 4 && where !== 'park' && where !== 'forest') continue;
       if (Math.sin(this.t * 2.5 + i * 1.7) < 0.2) continue;
       const x = GROUND_L + ((i * 53 + Math.sin(this.t * 0.7 + i) * 18 + 400) % (GROUND_R - GROUND_L));
       ctx.globalAlpha = night * 0.8;

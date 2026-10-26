@@ -9,8 +9,8 @@ import { menuHud } from './backdrop.js';
 import { MenuScene } from './menu.js';
 
 const PEOPLE = [
-  { name: 'CALVIN GUILLOT', role: 'PROGRAMMER AND SOUND', site: 'CALVINGUILLOT.COM', url: 'https://calvinguillot.com/', color: 'blue', style: 'classic' },
-  { name: 'TERO JUUTI', role: 'ART AND INSPIRATION', site: 'TEROJUUTI.COM', url: 'https://terojuuti.com/', color: 'mint', style: 'wagasa' },
+  { role: 'PROGRAMMING AND SOUND BY', name: 'CALVIN GUILLOT', site: 'CALVINGUILLOT.COM', url: 'https://calvinguillot.com/', color: 'blue', style: 'classic' },
+  { role: 'INSPIRED BY THE ART OF', name: 'TERO JUUTI', site: 'TEROJUUTI.COM', url: 'https://terojuuti.com/', color: 'mint', style: 'wagasa' },
 ];
 const ROW_Y = 70;
 const ROW_H = 48;
@@ -57,8 +57,8 @@ export class CreditsScene {
         plate(ctx, 14, y - 6, 152, ROW_H - 6);
         const s = umbrellaSprite(p.color, 9, Math.round(Math.sin(this.t * 2 + i) * 1.5), 1, false, 'j', p.style);
         ctx.drawImage(s.canvas, 30 - s.ax, y + 14 - s.ay + (on ? Math.round(Math.sin(this.t * 5) * 1) : 0));
-        drawText(ctx, p.name, 46, y, on ? '#ffffff' : PAL.text, { shadow: PAL.textShadow });
-        drawText(ctx, p.role, 46, y + 10, PAL.textDim, { shadow: PAL.textShadow });
+        drawText(ctx, p.role, 46, y, PAL.textDim, { shadow: PAL.textShadow });
+        drawText(ctx, p.name, 46, y + 10, on ? '#ffffff' : PAL.text, { shadow: PAL.textShadow });
         drawText(ctx, p.site, 46, y + 22, on ? PAL.rippleHi : PAL.rippleMid, { shadow: PAL.textShadow });
         if (on && Math.floor(this.t * 3) % 2 === 0) drawText(ctx, '>', 18, y + 10, PAL.text, { shadow: PAL.textShadow });
       });

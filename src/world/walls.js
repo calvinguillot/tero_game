@@ -1,4 +1,5 @@
 import { PAL } from '../render/palette.js';
+import { PixBuf } from '../render/pixels.js';
 import { WALL, GROUND_R } from '../config.js';
 
 const AWNINGS = ['#e05a6a', '#3fa6ef', '#f2b03a'];
@@ -8,6 +9,24 @@ function canvas(w, h, draw) {
   cv.width = w;
   cv.height = h;
   draw(cv.getContext('2d'));
+  return cv;
+}
+
+// A wall tile of leafy blobs: a dark base up to the wall line, round blobs
+// that bulge onto the pavement, highlights, an outline, and a few `dots`.
+// colors: [base, leaf, highlight, outline].
+function leafy(h, blobs, colors, dots) {
+  const b = new PixBuf(WALL, h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < WALL - 2; x++) b.set(x, y, 1);
+  for (const [x, y, rx, ry] of blobs) b.fillEllipse(x, y, rx, ry, 2);
+  for (const [x, y, rx, ry] of blobs) b.fillEllipse(x - 1, y - 1.5, rx * 0.45, ry * 0.45, 3);
+  b.outline(4);
+  const cv = b.toCanvas([null, ...colors]);
+  const c = cv.getContext('2d');
+  for (const [x, y, col] of dots) {
+    c.fillStyle = col;
+    c.fillRect(x, y, 1, 1);
+  }
   return cv;
 }
 
@@ -36,21 +55,29 @@ const BUILDERS = {
       for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) c.fillRect(3 + x * 2, 3 + y * 2, 1, 1);
     }),
   ],
+  // A row of round, clipped bushes with a few flowers; the street edge is bumpy.
   hedge: () => [
-    canvas(WALL, 12, (c) => {
-      c.fillStyle = '#2f6b3a';
-      c.fillRect(0, 0, WALL, 12);
-      c.fillStyle = '#3f8a45';
-      for (let i = 0; i < 26; i++) c.fillRect((i * 7) % 11, (i * 5) % 12, 2, 1);
-      c.fillStyle = '#5aa84f';
-      for (let i = 0; i < 10; i++) c.fillRect((i * 5 + 3) % 11, (i * 7 + 1) % 12, 1, 1);
-      c.fillStyle = '#f4a6c6';
-      c.fillRect(3, 4, 1, 1);
-      c.fillStyle = '#ffffff';
-      c.fillRect(8, 9, 1, 1);
-      c.fillStyle = '#24552e';
-      c.fillRect(11, 0, 1, 12);
-    }),
+    leafy(16, [
+      [5, 4, 6.5, 5],
+      [6, 12, 6.5, 5],
+    ], ['#24552e', '#3a8644', '#5aa84f', '#1d4a26'], [[7, 5, '#f4a6c6'], [3, 13, '#ffffff'], [8, 11, '#f4a6c6']]),
+    leafy(16, [
+      [6, 8, 6.5, 6],
+      [3, 1, 5, 3],
+      [3, 15, 5, 3],
+    ], ['#24552e', '#3a8644', '#5aa84f', '#1d4a26'], [[5, 7, '#ffffff']]),
+  ],
+  // Dense treeline: dark crowns with the odd trunk showing.
+  forest: () => [
+    leafy(20, [
+      [4, 4, 6, 5],
+      [7, 12, 6, 5],
+      [3, 18, 5, 4],
+    ], ['#163a26', '#24563a', '#3a7a4a', '#0f2a1c'], [[2, 9, '#4a3a28'], [2, 10, '#4a3a28']]),
+    leafy(20, [
+      [6, 6, 6.5, 6],
+      [4, 15, 6, 5],
+    ], ['#163a26', '#2c6040', '#46884e', '#0f2a1c'], []),
   ],
   // Shopfronts with striped awnings reaching over the pavement.
   shop: () =>

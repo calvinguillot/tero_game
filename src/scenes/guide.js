@@ -64,6 +64,7 @@ const PLACES = {
   town: ['BRICK WALLS, DRAINS,', 'PIGEONS AND CATS.'],
   park: ['HEDGES, DRIPPING TREES,', 'DUCKS AND FROGS.'],
   market: ['SHOP AWNINGS, CRATES', 'AND TILED PAVEMENT.'],
+  forest: ['BIG TREES, MUD AND FOXES.', 'BRANCHES ARCH OVERHEAD.'],
   harbor: ['CANAL RAILS, LAMPS,', 'GULLS ON THE BOARDS.'],
 };
 
@@ -74,6 +75,7 @@ const ANIMALS = [
   ['frog', 'FROG', 'HOPS AWAY'],
   ['gull', 'GULL', 'FLIES OFF'],
   ['snail', 'SNAIL', 'TAKES ITS TIME'],
+  ['fox', 'FOX', 'TROTS OFF'],
 ];
 
 const PAGES = [
@@ -123,11 +125,11 @@ const PAGES = [
       drawText(ctx, 'A NEW PLACE EVERY 25 POINTS.', 90, 32, PAL.text, { ...opt, align: 'center' });
       LOCATION_ORDER.forEach((key, i) => {
         const loc = LOCATIONS[key];
-        const y = 46 + i * 40;
+        const y = 44 + i * 34;
         ctx.fillStyle = loc.ground;
-        ctx.fillRect(26, y, 22, 28);
+        ctx.fillRect(26, y, 22, 26);
         const tile = wallTile(loc.wall);
-        for (let ty = 0; ty < 28; ty += tile.height) ctx.drawImage(tile, 0, 0, tile.width, Math.min(tile.height, 28 - ty), 14, y + ty, tile.width, Math.min(tile.height, 28 - ty));
+        for (let ty = 0; ty < 26; ty += tile.height) ctx.drawImage(tile, 0, 0, tile.width, Math.min(tile.height, 26 - ty), 14, y + ty, tile.width, Math.min(tile.height, 26 - ty));
         ctx.drawImage(ellipseSprite(6, 3, loc.ripple[0], false), 31, y + 11);
         drawText(ctx, loc.name, 56, y + 3, PAL.text, opt);
         lines(ctx, PLACES[key], 56, y + 13);
@@ -140,7 +142,7 @@ const PAGES = [
       lines(ctx, ['ANIMALS CROSS NOW AND THEN.', 'THEY ARE HARMLESS AND GET', 'OUT OF YOUR WAY.'], 14, 34);
       ANIMALS.forEach(([kind, name, what], i) => {
         const x = i % 2 ? 98 : 14;
-        const y = 76 + Math.floor(i / 2) * 40;
+        const y = 72 + Math.floor(i / 2) * 32;
         const cv = animalIcon(kind);
         ctx.drawImage(cv, x + 8 - Math.floor(cv.width / 2), y + 8 - cv.height);
         drawText(ctx, name, x + 20, y, PAL.text, opt);
@@ -177,9 +179,9 @@ const PAGES = [
         'EVERY CLOSE! NEAR MISS IS',
         'COUNTED UNDER YOUR SCORE.',
         '',
-        '!AT 20 CLOSE!, THE SUN',
-        '!BREAKS THROUGH FOR FIVE',
-        '!SECONDS:',
+        '!AT 20 CLOSE! (15 ON EASY,',
+        '!25 ON HARD) THE SUN BREAKS',
+        '!THROUGH FOR FIVE SECONDS:',
         '',
         '- EVERYONE SHUTS THEIR',
         '  UMBRELLA.',

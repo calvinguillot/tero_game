@@ -6,12 +6,12 @@ It runs in the browser using plain JavaScript and the Canvas 2D API. All of the 
 
 ## Features
 
-- **Arcade mode**: three lives, a crowd that speeds up as you score, an extra life every 100 points (four at most), and an arcade-style high-score table for each difficulty where you sign your three initials.
+- **Arcade mode**: three lives, a crowd that speeds up as you score, an extra life every 100 points (four at most), and an arcade-style high-score table for each difficulty where you sign your three initials (it also records each run's CLOSE! count). On Hard, puddles and mud slow you down a little.
 - **Force field**: a shockwave that pushes nearby umbrellas away and snaps them shut, and sweeps the water aside. It recharges over time, and near misses (**CLOSE!**) give it a boost.
-- **SUN RUSH**: every 20 CLOSE! near misses, the sun breaks through for five seconds. Everyone shuts their umbrella, you run and can't be hurt, and every umbrella you pass or bump scores.
+- **SUN RUSH**: every 20 CLOSE! near misses (15 on Easy, 25 on Hard), the sun breaks through for five seconds, even at night. Everyone shuts their umbrella, you run with your own umbrella closed and glowing, nothing can hurt you, and every umbrella you pass or bump scores.
 - **Attract mode**: leave the title screen alone and the game plays a demo of itself.
 - **Walker types**: commuters, wanderers, elders, hurriers, kids and pairs, each with its own readable behavior. Some telegraph their moves with a `!` first.
-- **Places**: Old Town, Rainy Park, Market St and Harbor, each with its own walls, ground, props and animals. A new place arrives every 25 points.
+- **Places**: Old Town, Rainy Park, Deep Forest, Market St and Harbor, each with its own walls, ground, props and animals. Bridges, flag bunting and big branches sometimes cross over the street, and large trees reach over it; they turn see-through when you walk underneath. Each run starts in a random place, at a random time of day and in random weather, and a new place arrives every 25 points.
 - **Day and night**: a four-minute day, with street lamps and fireflies after dark.
 - **Weather**: rainy, drizzle, hazy and stormy, changing every 30–45 seconds and each changing how you play (fog hides the crowd; storms bring gusts and lightning).
 - **Synthesized sound**: effects; rain built from individual drops (a few for a drizzle, a downpour in a storm), wind and thunder; crickets and birds; and a soft tune that changes key at night. Sound effects, music and rain each have their own on/off switch.
@@ -104,7 +104,7 @@ All graphics are generated at startup and cached as small canvases.
   - shrinking the rim and raising the tip **closes** it;
   - putting the tip below the rim turns it **inside out**.
 
-  Styles change the rib count, height and pattern (polka dots, stripes, the wagasa band, the clear bubble with its glint, the frilled edge). Colors come from small palettes of outline, dark, base, light and accent. Each combination of color, size, tilt, openness, style and handle is built once and cached.
+  A fourth parameter, **pitch**, leans the cone forward (flatter, more of the top showing) when you walk up the street and back (taller, narrower) when you walk down. Styles change the rib count, height and pattern (polka dots, stripes, the wagasa band, the clear bubble with its glint, the frilled edge). Colors come from small palettes of outline, dark, base, light and accent. Each combination of color, size, tilt, openness, style and handle is built once and cached.
 - **Text-map sprites** (`render/sprites.js`): animals, plants, crates, lamps, drains and manholes are written as rows of characters, where each character maps to a color. Mirroring for left/right facing and a "sway" frame (the top rows shifted by a pixel) are generated from the same rows.
 - **Ellipse sprites**: ripple rings, shadows and puddles are pixel-perfect ellipses, cached by size and color.
 - **Text** uses a 3×5 bitmap font drawn with `fillRect`, scaled by whole numbers. The title wordmark is its own small chunky-serif glyph set, with a raindrop for the dot on the i.
@@ -116,7 +116,7 @@ The street scrolls down as you walk up it. Everything that lies on the ground (r
 - **Walls** are 12-pixel-wide tiles, one tile set per location: brick, hedge, shop awnings (three color variants), and a harbor rail with canal water. Tiles are built for the left wall and mirrored for the right. They're drawn in a column starting at `scrollY % tileHeight`, so the column scrolls smoothly without ever drawing off-grid. Each tile's variant is chosen from its position in the world rather than on screen, so an awning keeps its color as it scrolls by.
 - **Ground patterns** (market paving, harbor planks) are lines drawn at scroll-relative offsets, with staggered seams on the planks.
 - **Zones**: the street is a stack of location bands. A new location enters at the top behind a crosswalk and scrolls down. Each band is clipped and drawn with its own ground, pattern and walls, and anything that needs a color (ripples, puddles, shadows) asks `locAt(y)` which location it's in.
-- **Props** are spawned by distance traveled, not time, from the location at the top of the screen. Side props (plants, lamps, crates, trees) hug the walls; floor details (drains, manholes, cobbles, leaves) sit on the ground. Trees drip ripples under their crowns and drains gurgle.
+- **Props** are spawned by distance traveled, not time, from the location at the top of the screen. Side props (bushes, lamps, crates, mushrooms, logs, trees) hug the walls; floor details (drains, manholes, cobbles, leaves, mud) sit on the ground. **Overhead** pieces (stone or timber bridges, flag bunting, arching branches) cross the street above the umbrellas. Big tree crowns, bridges and branches fade to see-through while you are under them, keep the ground beneath them dry, and cast shadows. Trees drip ripples under their crowns and drains gurgle.
 
 ### Draw order
 
@@ -148,9 +148,9 @@ The HUD panels are drawn outside the playfield in the same frame.
 
 - **Time of day** moves through keyframed light colors: sunrise, morning, afternoon, sunset, dusk, night. The current color is blended between keyframes and drawn over the scene with the `multiply` blend mode. Clouds dim it further, and a sunny day adds a little warmth with the `lighter` blend mode.
 - **Weather** is a set of numbers: rain amount, wind, fog, clouds, lightning, umbrellas open, puddle size, sunlight. A change blends every number to the new weather, normally over six seconds, so nothing switches abruptly. The normal cycle picks rainy, drizzle, hazy or stormy every 30–45 seconds, never repeating the same state twice in a row and keeping storms away early in a run.
-  - **Storms** schedule gusts with a one-second warning, and lightning strikes that flash twice.
+  - **Storms** schedule gusts with a one-second warning (each gust turns about half the open umbrellas inside out), and a lightning strike every 4–8 seconds: a jagged bolt drawn into the street, a double flash, a splash where it lands, and thunder.
   - **Haze** is an ordered-dither (Bayer 4×4) fog layer, densest at the top of the street, drifting sideways.
-  - **Sunny** is only used for a SUN RUSH. The play scene pauses the automatic cycle, blends to sunny in 0.6 s, and blends back to the previous weather afterwards.
+  - **Sunny** is only used for a SUN RUSH. The play scene pauses the automatic cycle, blends to sunny in 0.6 s, and blends back to the previous weather afterwards. A rush also pulls the light to full day for its duration (the clock keeps running underneath).
   - **Gameplay reads the same numbers**: walkers raise or lower umbrellas to match, puddles grow and shrink, and wind pushes everyone.
 
 ### Gameplay systems
@@ -189,5 +189,5 @@ Settings, your last initials and high scores (score, initials and date) are save
 
 ## Credits
 
-- **Calvin Guillot**, programming and sound: <https://calvinguillot.com/>
-- **Tero Juuti**, art and inspiration: <https://terojuuti.com/>
+- Programming and sound by **Calvin Guillot**: <https://calvinguillot.com/>
+- Inspired by the art of **Tero Juuti**: <https://terojuuti.com/>

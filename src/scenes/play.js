@@ -16,6 +16,7 @@ import {
 import { lerp, rand, pick, choice } from "../core/math.js";
 import { PAL, UMBRELLA_COLORS } from "../render/palette.js";
 import { drawText } from "../render/font.js";
+import { ellipseSprite } from "../render/pixels.js";
 import { drawHud } from "../ui/hud.js";
 import { navigate, plate, menuItem } from "../ui/menu.js";
 import { InitialsEntry } from "../ui/initials.js";
@@ -31,8 +32,7 @@ const POINTS_PER_LOCATION = 25;
 const CLOSE_BONUS = 2; // seconds of field recharge for a near miss
 const MILESTONE = 10; // celebrate every N points
 const NEAR_MISS = 2.0; // squared hitbox distance below which a pass sparkles
-const RUSH_EVERY = 20; // CLOSE! near misses needed for a SUN RUSH
-const RUSH_TIME = 5; // seconds
+const RUSH_TIME = 5; // seconds (how many CLOSE! start one is per difficulty)
 const RUSH_SPEED = 1.7; // street speed multiplier while rushing
 const PAUSE_ITEMS = ["RESUME", "RESTART", "MAIN MENU"];
 const DAY_LENGTH = 240; // seconds for a full day in arcade
@@ -58,11 +58,15 @@ export class PlayScene {
     this.d = DIFFICULTY[difficulty];
     this.color = color;
     this.style = style;
-    // Every run starts in the morning, in any weather but a storm; the day and
-    // the weather move on from there.
-    const weather = choice(["rainy", "drizzle", "hazy"]);
+    // Every run starts somewhere random: place, time of day and weather (no
+    // storm straight away on Easy). Everything moves on from there.
+    this.startLoc = Math.floor(Math.random() * LOCATION_ORDER.length);
+    const weathers = ["rainy", "drizzle", "hazy", "stormy"];
+    const weather = choice(
+      difficulty === "easy" ? weathers.slice(0, 3) : weathers,
+    );
     const sky = new Sky({
-      time: 0.12,
+      time: Math.random(),
       cycle: DAY_LENGTH,
       dayNight,
       weather,
@@ -71,11 +75,12 @@ export class PlayScene {
     });
     this.world = new World({
       speed: this.d.speedStart,
-      location: LOCATION_ORDER[0],
+      location: LOCATION_ORDER[this.startLoc],
       lowFx: !fx,
       sky,
     });
     this.world.softFlash = !flash;
+    this.world.wetSlow = this.d.wetSlow;
     this.player = new Player(color, style);
     this.world.player = this.player;
     this.field = new ForceField(this.d.recharge);
@@ -90,6 +95,7 @@ export class PlayScene {
     this.lifeGainT = 0;
     this.streak = 0; // points in a row without getting hit (raises the score blip)
     this.closeCount = 0; // CLOSE! near misses towards the next SUN RUSH
+    this.closes = 0; // all CLOSE! near misses this run (shown in high scores)
     this.rushT = 0;
     this.rushWeather = null; // weather to go back to after the rush
     this.quietWeather = 0; // weather changes the rush makes itself: no banner
@@ -137,7 +143,7 @@ export class PlayScene {
   get rush() {
     return {
       count: this.closeCount,
-      every: RUSH_EVERY,
+      every: this.d.rushEvery,
       left: this.rushT / RUSH_TIME,
     };
   }
@@ -231,6 +237,10 @@ export class PlayScene {
     if (playing && (this.demo ? this.ai.takeBurst() : input.hit("action")))
       this.fireField();
     if (this.rushT > 0 && (this.rushT -= dt) <= 0) this.endRush();
+    // While rushing, the umbrella flashes white now and then.
+    if (this.rushT > 0 && Math.floor(this.rushT * 2.5) !== Math.floor((this.rushT + dt) * 2.5)) {
+      this.player.flashT = 0.06;
+    }
 
     const I = intensity(this.score);
     if (playing) {
@@ -300,7 +310,9 @@ export class PlayScene {
   finishInitials() {
     const { data } = this.game;
     data.settings.initials = this.entry.name;
-    submitScore(data, "arcade", this.diffKey, this.score, this.entry.name);
+    submitScore(data, "arcade", this.diffKey, this.score, this.entry.name, {
+      closes: this.closes,
+    });
     saveData(data);
     this.state = "over";
     this.overT = 0;
@@ -344,7 +356,8 @@ export class PlayScene {
       this.popup("CLOSE!", mx, my - 6, { color: pal.light });
       this.field.bonus(CLOSE_BONUS);
       this.sound("close");
-      if (++this.closeCount >= RUSH_EVERY) this.startRush();
+      this.closes++;
+      if (++this.closeCount >= this.d.rushEvery) this.startRush();
     } else {
       this.popup("+1", n.x, n.y - n.r);
       this.sound("score", this.streak);
@@ -373,7 +386,8 @@ export class PlayScene {
     }
     const loc =
       LOCATION_ORDER[
-        Math.floor(this.score / POINTS_PER_LOCATION) % LOCATION_ORDER.length
+        (this.startLoc + Math.floor(this.score / POINTS_PER_LOCATION)) %
+          LOCATION_ORDER.length
       ];
     if (this.world.setLocation(loc)) {
       this.toasts.push({ text: LOCATIONS[loc].name, t: 0 });
@@ -389,6 +403,7 @@ export class PlayScene {
     this.rushT = RUSH_TIME;
     this.rushWeather = sky.weatherKey;
     sky.hold = true;
+    sky.forceDay = true; // the sun comes out even at night
     if (sky.setWeather("sunny", 0.6)) this.quietWeather++;
     this.player.rush = true;
     this.toasts.unshift({ text: "SUN RUSH!", t: 0 });
@@ -402,6 +417,7 @@ export class PlayScene {
     this.player.rush = false;
     this.player.invT = Math.max(this.player.invT, 1); // a moment to find your feet
     sky.hold = false;
+    sky.forceDay = false;
     sky.nextWeatherT = rand(20, 35);
     if (sky.setWeather(this.rushWeather, 2)) this.quietWeather++;
     this.sound("rushEnd");
@@ -430,18 +446,25 @@ export class PlayScene {
             t: 0,
           });
       } else if (e === "gust") {
-        // Someone's umbrella turns inside out.
-        const victims = this.npcs.filter(
-          (n) => !n.shooed && n.y > 10 && n.y < PF_H - 30,
+        // Umbrellas get caught and turn inside out (about half of them, and
+        // always at least one), staying flipped while the gust blows.
+        const open = this.npcs.filter(
+          (n) => !n.shooed && n.open > 0.6 && n.y > 0 && n.y < PF_H - 20,
         );
-        const n = victims[Math.floor(Math.random() * victims.length)];
-        if (n) {
-          n.flipT = 1.2;
-          n.wob = 1;
-        }
+        open.forEach((n, i) => {
+          if (i === 0 || Math.random() < 0.45) {
+            n.flipT = rand(1.4, 2.2);
+            n.wob = 1;
+          }
+        });
         this.sound("gust");
       } else if (e === "thunder") {
-        this.shakeFor(0.15);
+        // The strike splashes the street where the bolt lands.
+        const bolt = this.world.sky.bolt;
+        const [bx, by] = bolt[bolt.length - 1];
+        this.world.addRipple(bx, by, 22, 3, 1.3);
+        this.world.splash(bx, by, 14, PAL.splash, false, 80);
+        this.shakeFor(0.3);
         this.sound("thunder", this.world.softFlash);
       }
     }
@@ -556,6 +579,7 @@ export class PlayScene {
           hidden: p.visible ? null : p,
           glow: p,
           overlay: () => {
+            if (this.rushT > 0) this.drawRushGlow(ctx);
             this.field.draw(ctx, p);
             // "!" over walkers about to make a move.
             for (const n of this.npcs) {
@@ -592,6 +616,23 @@ export class PlayScene {
     }
     if (this.state === "over" && !this.demo)
       inPlayfield(ctx, L, () => this.drawGameOver(ctx));
+  }
+
+  // Running in the sun: a pulsing golden aura and ring around the closed umbrella.
+  drawRushGlow(ctx) {
+    const p = this.player;
+    const x = Math.round(p.x);
+    const y = Math.round(p.y);
+    const pulse = 0.5 + 0.5 * Math.sin(this.t * 14);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = 0.5 + pulse * 0.4;
+    ctx.drawImage(ellipseSprite(17, 10, "#5a4410", true), x - 17, y - 16);
+    ctx.drawImage(ellipseSprite(10, 6, "#6a5418", true), x - 10, y - 12);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = 1;
+    const rx = 14 + Math.round(pulse * 3);
+    const ry = Math.round(rx * 0.55);
+    ctx.drawImage(ellipseSprite(rx, ry, "#ffe9a0", false), x - rx, y - 6 - ry);
   }
 
   drawDemo(ctx) {

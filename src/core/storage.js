@@ -50,10 +50,11 @@ export function scoreRank(data, mode, difficulty, score) {
   return list.length < TABLE_SIZE ? list.length + 1 : 0;
 }
 
-export function submitScore(data, mode, difficulty, score, name = '') {
+// `extra` holds run stats kept with the entry (e.g. { closes }).
+export function submitScore(data, mode, difficulty, score, name = '', extra = {}) {
   const table = (data.highScores[mode] ??= {});
   const list = (table[difficulty] ??= []);
-  list.push({ score, name, date: new Date().toISOString().slice(0, 10) });
+  list.push({ score, name, ...extra, date: new Date().toISOString().slice(0, 10) });
   list.sort((a, b) => b.score - a.score);
   list.length = Math.min(list.length, TABLE_SIZE);
   saveData(data);

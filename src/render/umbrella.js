@@ -31,13 +31,16 @@ export function canopyGeom(r, open = 1, style = 'classic') {
 
 const cache = new Map();
 
-export function umbrellaSprite(color, r, tilt = 0, open = 1, inv = false, handle = 'j', style = 'classic') {
+// tilt leans the tip sideways; pitch leans it forward (+, walking up the
+// street: flatter, more of the top showing) or back (−: taller, narrower).
+export function umbrellaSprite(color, r, tilt = 0, open = 1, inv = false, handle = 'j', style = 'classic', pitch = 0) {
   tilt = Math.max(-4, Math.min(4, Math.round(tilt)));
+  pitch = Math.max(-2, Math.min(2, Math.round(pitch)));
   open = Math.round(open * 10) / 10;
-  const key = `${color}|${r}|${tilt}|${open}|${inv ? 1 : 0}|${handle}|${style}`;
+  const key = `${color}|${r}|${tilt}|${open}|${inv ? 1 : 0}|${handle}|${style}|${pitch}`;
   let s = cache.get(key);
   if (!s) {
-    s = build(color, r, tilt, open, inv, handle, style);
+    s = build(color, r, tilt, open, inv, handle, style, pitch);
     cache.set(key, s);
   }
   return s;
@@ -53,10 +56,13 @@ const HANDLE_DARK = 6;
 const STICK = 7;
 const ACCENT = 8;
 
-function build(color, r, tilt, open, inv, handle, style) {
+function build(color, r, tilt, open, inv, handle, style, pitch) {
   const pal = UMBRELLA_COLORS[color];
   const st = STYLES[style];
-  const { R, ry, h, L } = canopyGeom(r, open, style);
+  const g = canopyGeom(r, open, style);
+  const { R, L } = g;
+  const ry = Math.max(1, g.ry * (1 + pitch * 0.2));
+  const h = g.h * (1 - pitch * 0.14);
   const W = 2 * r + 14;
   const ay = Math.round(r * 2.05) + 4;
   const H = ay + Math.round(r * 1.5) + 6;
@@ -198,14 +204,14 @@ function white(cv) {
 // Umbrella objects carry x, y (rim centre), r, color, style, tilt, open, inv,
 // handle, bobY, and optionally flashT (white flash) and groundY (for floaters).
 export function drawUmbrella(ctx, u) {
-  const s = umbrellaSprite(u.color, u.r, u.tilt, u.open, u.inv, u.handle, u.style);
+  const s = umbrellaSprite(u.color, u.r, u.tilt, u.open, u.inv, u.handle, u.style, u.pitch);
   const cv = u.flashT > 0 ? white(s.canvas) : s.canvas;
   ctx.drawImage(cv, Math.round(u.x) - s.ax, Math.round(u.y + (u.bobY || 0)) - s.ay);
 }
 
 // Upside-down copy mirrored about the ground under the umbrella.
 export function drawReflection(ctx, u) {
-  const s = umbrellaSprite(u.color, u.r, u.tilt, u.open, u.inv, u.handle, u.style);
+  const s = umbrellaSprite(u.color, u.r, u.tilt, u.open, u.inv, u.handle, u.style, u.pitch);
   const gy = Math.round(u.groundY ?? u.y + u.r * 0.95);
   ctx.save();
   ctx.translate(0, gy * 2);
