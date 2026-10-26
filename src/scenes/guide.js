@@ -80,13 +80,13 @@ const PAGES = [
   {
     title: 'THE STREET',
     draw(ctx) {
-      lines(ctx, ['WALK UP THE RAINY STREET.', '', '!EVERY UMBRELLA THAT GETS', '!PAST YOU SCORES +1.', '', 'BUMP INTO ONE AND YOU LOSE', 'A LIFE. YOU HAVE THREE.', '', 'THE CROWD GETS FASTER AND', 'BUSIER AS YOU SCORE.'], 14, 34);
-      umbrella(ctx, 'npc', 13, 48, 160);
-      umbrella(ctx, 'npcSand', 13, 134, 152);
-      caption(ctx, '+1', 48, 134);
-      caption(ctx, '+1', 134, 126);
-      umbrella(ctx, menuColor, 14, 90, 190, menuStyle, 'j');
-      caption(ctx, 'YOU', 90, 207);
+      lines(ctx, ['WALK UP THE RAINY STREET.', '', '!EVERY UMBRELLA THAT GETS', '!PAST YOU SCORES +1.', '', 'BUMP INTO ONE AND YOU LOSE', 'A LIFE. YOU HAVE THREE, AND', 'EVERY 100 POINTS GIVES ONE', 'BACK (UP TO FOUR).', '', 'THE CROWD GETS FASTER AND', 'BUSIER AS YOU SCORE.'], 14, 34);
+      umbrella(ctx, 'npc', 13, 44, 178);
+      umbrella(ctx, 'npcSand', 13, 136, 172);
+      caption(ctx, '+1', 44, 152);
+      caption(ctx, '+1', 136, 146);
+      umbrella(ctx, menuColor, 14, 90, 196, menuStyle, 'j');
+      caption(ctx, 'YOU', 116, 196);
     },
   },
   {
@@ -108,7 +108,7 @@ const PAGES = [
   {
     title: 'FORCE FIELD',
     draw(ctx, t) {
-      lines(ctx, ['PRESS SPACE (OR THE BUTTON)', 'TO BURST. EVERY UMBRELLA', 'THE WAVE TOUCHES IS PUSHED', 'AWAY AND SNAPS SHUT. RAIN', 'AND RIPPLES ARE SWEPT OUT.', '', '!CLOSED UMBRELLAS CAN\'T', '!HURT YOU - BUT THEY GIVE', '!NO POINT.', '', 'IT RECHARGES OVER TIME, AND', 'EVERY POINT SPEEDS IT UP.'], 14, 34);
+      lines(ctx, ['PRESS SPACE (OR THE BUTTON)', 'TO BURST. EVERY UMBRELLA', 'THE WAVE TOUCHES IS PUSHED', 'AWAY AND SNAPS SHUT. RAIN', 'AND RIPPLES ARE SWEPT OUT.', '', '!CLOSED UMBRELLAS CAN\'T', '!HURT YOU - BUT THEY GIVE', '!NO POINT.', '', 'IT RECHARGES OVER TIME. EACH', 'CLOSE! NEAR MISS ADDS A BOOST.'], 14, 34);
       umbrella(ctx, 'npc', 14, 44, 182);
       caption(ctx, '>', 90, 178);
       umbrella(ctx, 'npc', 14, 136, 182, 'classic', 'stick', 0.15);
@@ -174,7 +174,7 @@ const PAGES = [
   {
     title: 'TIPS',
     draw(ctx) {
-      lines(ctx, ['- WATCH FOR ! : SOMEONE IS', '  ABOUT TO MOVE.', '', '- NEAR MISSES SPARKLE.', '  SQUEEZE THROUGH GAPS!', '', '- SAVE THE FIELD FOR', '  TIGHT SPOTS.', '', '- STAY LOW ON THE SCREEN TO', '  SEE THE CROWD COMING.', '', '- PASS ELDERS EARLY.', '', '- NEW TO IT? TRY EASY.'], 14, 34);
+      lines(ctx, ['- WATCH FOR ! : SOMEONE IS', '  ABOUT TO MOVE.', '', '- NEAR MISSES CHARGE THE', '  FIELD. SQUEEZE THROUGH!', '', '- SAVE THE FIELD FOR', '  TIGHT SPOTS.', '', '- STAY LOW ON THE SCREEN TO', '  SEE THE CROWD COMING.', '', '- PASS ELDERS EARLY.', '', '- NEW TO IT? TRY EASY.'], 14, 34);
     },
   },
 ];
@@ -192,7 +192,9 @@ export class GuideScene {
   }
 
   flip(dir) {
-    this.page = Math.max(0, Math.min(PAGES.length - 1, this.page + dir));
+    const page = Math.max(0, Math.min(PAGES.length - 1, this.page + dir));
+    if (page !== this.page) this.game.audio.menuMove();
+    this.page = page;
   }
 
   update(dt) {

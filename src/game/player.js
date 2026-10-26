@@ -7,13 +7,15 @@ const ACCEL = 14; // higher = snappier; ~0.07s to reach full speed
 const TWIRL = 0.6;
 
 // A footstep: a small ring, or a proper splash when it lands in a puddle.
+// Returns whether it splashed.
 export function stepRipple(world, x, y, size) {
   if (world.inPuddle(x, y)) {
     world.addRipple(x, y, size + 5, 2, 0.9);
     world.splash(x, y, 3, PAL.rainTip, false, 35);
-  } else {
-    world.addRipple(x, y, size, 1, 0.6);
+    return true;
   }
+  world.addRipple(x, y, size, 1, 0.6);
+  return false;
 }
 
 export class Player {
@@ -93,6 +95,7 @@ export class Player {
 
     this.flashT = Math.max(0, this.flashT - dt);
 
+    this.splashed = false;
     const moving = Math.hypot(this.vx, this.vy) > 15;
     this.bobY = moving ? (Math.floor(this.t * 8) % 2 ? -1 : 0) : Math.round(Math.sin(this.t * 2.5) * 0.7);
     if (moving) {
@@ -101,7 +104,7 @@ export class Player {
       if (this.stepT <= 0) {
         this.stepT = 0.2;
         this.stepSide *= -1;
-        stepRipple(world, this.x + this.stepSide * 2, this.y + 13, 5);
+        this.splashed = stepRipple(world, this.x + this.stepSide * 2, this.y + 13, 5);
       }
     } else if (this.hitT <= 0 && (this.idleT += dt) > this.nextTwirl) {
       this.idleT = 0;

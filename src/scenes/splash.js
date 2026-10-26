@@ -29,7 +29,10 @@ export class SplashScene {
     h.bobY = Math.round(Math.sin(this.t * 1.6) * 2);
     h.tilt = Math.sin(this.t * 0.7) * 1.5;
     this.bd.update(dt, [h]);
-    if (this.game.input.hit('confirm') || this.game.input.hit('action')) this.game.go(new MenuScene(this.game));
+    if (this.game.input.hit('confirm') || this.game.input.hit('action')) {
+      this.game.audio.menuSelect();
+      this.game.go(new MenuScene(this.game));
+    }
     this.game.input.takeTap();
   }
 

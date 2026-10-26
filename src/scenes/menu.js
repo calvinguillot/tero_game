@@ -9,15 +9,17 @@ import { SettingsScene } from './settings.js';
 import { GuideScene } from './guide.js';
 import { ScoresScene } from './scores.js';
 import { SplashScene } from './splash.js';
+import { CreditsScene } from './credits.js';
 
 const ITEMS = [
   ['PLAY', (g) => new PlayScene(g)],
   ['SETTINGS', (g) => new SettingsScene(g)],
   ['HOW TO PLAY', (g) => new GuideScene(g)],
   ['HIGH SCORES', (g) => new ScoresScene(g)],
+  ['CREDITS', (g) => new CreditsScene(g)],
 ];
-const ROW_Y = 124;
-const ROW_H = 20;
+const ROW_Y = 114;
+const ROW_H = 18;
 
 export class MenuScene {
   constructor(game, sel = 0) {
@@ -31,14 +33,14 @@ export class MenuScene {
   }
 
   update(dt) {
-    const { input, display } = this.game;
+    const { input } = this.game;
     this.t += dt;
     this.hero.bobY = Math.round(Math.sin(this.t * 2.2) * 1.5);
     this.hero.tilt = Math.sin(this.t * 0.9) * 2;
     this.bd.update(dt, [this.hero]);
 
     const rects = ITEMS.map((_, i) => ({ x: 20, y: ROW_Y + i * ROW_H - 4, w: 140, h: ROW_H }));
-    const { sel, act } = navigate(input, display.layout, this.sel, rects);
+    const { sel, act } = navigate(this.game, this.sel, rects);
     this.sel = sel;
     if (act) this.game.go(ITEMS[sel][1](this.game));
     else if (input.hit('pause')) this.game.go(new SplashScene(this.game));
@@ -53,7 +55,7 @@ export class MenuScene {
       drawLogo(ctx, 90, 18, 1);
       plate(ctx, 14, ROW_Y - 10, 152, ITEMS.length * ROW_H + 8);
       ITEMS.forEach(([label], i) => menuItem(ctx, label, 90, ROW_Y + i * ROW_H, i === this.sel, this.t));
-      hint(ctx, 'ARROWS + SPACE, OR TAP', 214);
+      hint(ctx, 'ARROWS + SPACE, OR TAP', 218);
     });
   }
 }

@@ -53,16 +53,20 @@ function score(ctx, s, x, y, scale, align = 'center') {
 }
 
 function lives(ctx, s, cx, y, gap) {
+  if (s.maxLives > 3) gap = Math.round(gap * 0.8);
   const x0 = cx - ((s.maxLives - 1) * gap) / 2;
   for (let i = 0; i < s.maxLives; i++) {
     const alive = i < s.lives;
     const lost = i === s.lives && s.lifeLostT > 0;
+    const gained = i === s.lives - 1 && s.lifeGainT > 0;
     if (lost && Math.floor(s.lifeLostT * 16) % 2) continue;
     const on = alive || lost;
     const spr = umbrellaSprite(on ? s.color : 'npc', 6, 0, 1, false, on ? 'j' : 'none', on ? s.style : 'classic');
     ctx.globalAlpha = on ? 1 : 0.35;
-    const rise = lost ? Math.round((0.6 - s.lifeLostT) * 12) : 0;
-    ctx.drawImage(spr.canvas, Math.round(x0 + i * gap) - spr.ax, y - spr.ay - rise);
+    // A lost life floats up as it blinks out; a new one bounces in.
+    let dy = lost ? -Math.round((0.6 - s.lifeLostT) * 12) : 0;
+    if (gained) dy = -Math.round(Math.abs(Math.sin(s.lifeGainT * 12)) * 4 * s.lifeGainT);
+    ctx.drawImage(spr.canvas, Math.round(x0 + i * gap) - spr.ax, y - spr.ay + dy);
     ctx.globalAlpha = 1;
   }
 }

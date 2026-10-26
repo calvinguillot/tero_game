@@ -23,10 +23,12 @@ const ROWS = [
   { key: 'fx', label: 'EFFECTS', list: [true, false], show: (v) => (v ? 'FULL' : 'LOW'), help: () => ['PUDDLE REFLECTIONS, DRIPS', 'AND SPRAY. LOW IS LIGHTER.'] },
   { key: 'shake', label: 'SHAKE', list: [true, false], show: (v) => (v ? 'ON' : 'OFF'), help: () => ['SCREEN SHAKE ON HITS', 'AND FORCE FIELD BURSTS.'] },
   { key: 'flash', label: 'LIGHTNING', list: [true, false], show: (v) => (v ? 'FULL' : 'SOFT'), help: () => ['HOW BRIGHT STORM FLASHES ARE.', 'SOFT IS EASIER ON THE EYES.'] },
+  { key: 'sound', label: 'SOUND', list: [true, false], show: (v) => (v ? 'ON' : 'OFF'), help: () => ['ALL SOUND: EFFECTS, RAIN', 'AND MUSIC.'] },
+  { key: 'music', label: 'MUSIC', list: [true, false], show: (v) => (v ? 'ON' : 'OFF'), help: () => ['A SOFT TUNE THAT CHANGES', 'KEY AT NIGHT.'] },
   { key: null, label: 'BACK', help: () => ['SETTINGS SAVE AUTOMATICALLY.', ''] },
 ];
-const ROW_Y = 88;
-const ROW_H = 12;
+const ROW_Y = 74;
+const ROW_H = 11;
 
 export class SettingsScene {
   constructor(game) {
@@ -35,7 +37,7 @@ export class SettingsScene {
     this.sel = 0;
     this.t = 0;
     this.changeT = 0;
-    this.hero = heroUmbrella(game, 90, 54, 16);
+    this.hero = heroUmbrella(game, 90, 46, 14);
   }
 
   change(dir) {
@@ -47,6 +49,7 @@ export class SettingsScene {
     this.hero.style = s.style;
     this.changeT = 0.35;
     saveData(this.game.data);
+    this.game.audio.menuMove();
   }
 
   back() {
@@ -54,13 +57,13 @@ export class SettingsScene {
   }
 
   update(dt) {
-    const { input, display } = this.game;
+    const { input } = this.game;
     this.t += dt;
     this.bd.update(dt, [this.hero]);
 
     const rects = ROWS.map((_, i) => ({ x: 14, y: ROW_Y + i * ROW_H - 3, w: 152, h: ROW_H }));
     const prev = this.sel;
-    const { sel, act } = navigate(input, display.layout, this.sel, rects);
+    const { sel, act } = navigate(this.game, this.sel, rects);
     this.sel = sel;
     if (input.hit('left')) this.change(-1);
     if (input.hit('right')) this.change(1);

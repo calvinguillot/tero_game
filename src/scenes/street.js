@@ -14,7 +14,7 @@ export function inPlayfield(ctx, L, fn, shake = 0) {
 }
 
 // Layers, back to front: street, water, low props and animals, shadows,
-// umbrellas, tall props and flying birds, spray, rain, fog; then the light of
+// umbrellas, tall props and flying birds, spray, rain, haze; then the light of
 // the hour is multiplied over everything, night lights and lightning are
 // added, and `overlay` (UI drawn in the street) goes on top.
 // `hidden` umbrellas still cast a shadow (used for the blinking player);
@@ -34,13 +34,7 @@ export function drawStreet(ctx, world, umbrellas, { hidden = null, overlay = nul
   world.drawParticles(ctx, true);
   world.drawRain(ctx);
   const sky = world.sky;
-  if (sky.p.fog > 0.05) {
-    sky.drawFog(ctx);
-    // Fair warning through the haze: shadows of whoever is coming.
-    ctx.globalAlpha = sky.p.fog * 0.6;
-    for (const u of sorted) if (u !== glow) drawShadow(ctx, u, '#2a5470');
-    ctx.globalAlpha = 1;
-  }
+  sky.drawFog(ctx);
   sky.drawTint(ctx);
   world.drawLights(ctx, glow && glow !== hidden ? glow : null);
   sky.drawFlash(ctx, world.softFlash);

@@ -5,6 +5,7 @@ import { PAL } from './render/palette.js';
 import { SplashScene } from './scenes/splash.js';
 import { Backdrop } from './scenes/backdrop.js';
 import { zoneAt } from './ui/hud.js';
+import { AudioEngine } from './audio/audio.js';
 
 const STEP = 1 / 60;
 const WIPE = 0.22; // seconds to cover, and again to uncover
@@ -13,10 +14,15 @@ const canvas = document.getElementById('game');
 const display = new Display(canvas);
 const input = new Input(canvas, display);
 input.zoneAt = (x, y) => zoneAt(display.layout, x, y);
+const data = loadData();
+const audio = new AudioEngine(data.settings);
+// Browsers only start audio from a user gesture.
+for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => audio.unlock());
 const game = {
   display,
   input,
-  data: loadData(),
+  audio,
+  data,
   scene: null,
   wipe: null,
   backdrop: null,
@@ -73,6 +79,9 @@ function frame(now) {
   }
   // Only drop unconsumed presses once a step has had a chance to see them.
   if (steps) game.input.endFrame();
+  // Rain, wind and music follow whatever street is on screen.
+  audio.duck = !!game.scene.paused;
+  audio.update(steps * STEP, game.scene.world ?? game.backdrop.world);
   game.scene.draw(display.ctx, display.layout);
   if (game.wipe) {
     const t = game.wipe.t;

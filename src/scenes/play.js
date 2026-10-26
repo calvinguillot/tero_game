@@ -7,7 +7,7 @@ import { ForceField, FIELD_RADIUS } from '../game/forcefield.js';
 import { DIFFICULTY, intensity, spawnWeights } from '../game/difficulty.js';
 import { overlapRatio } from '../game/collision.js';
 import { bestScore, submitScore } from '../core/storage.js';
-import { lerp, rand, pick } from '../core/math.js';
+import { lerp, rand, pick, choice } from '../core/math.js';
 import { PAL, UMBRELLA_COLORS } from '../render/palette.js';
 import { drawText } from '../render/font.js';
 import { drawHud } from '../ui/hud.js';
@@ -17,8 +17,10 @@ import { inPlayfield, drawStreet } from './street.js';
 import { MenuScene } from './menu.js';
 
 const START_LIVES = 3;
+const MAX_LIVES = 4; // one spare life at most
+const EXTRA_LIFE_EVERY = 100;
 const POINTS_PER_LOCATION = 25;
-const FIELD_BONUS = 0.5; // seconds of recharge per point scored
+const CLOSE_BONUS = 2; // seconds of field recharge for a near miss
 const MILESTONE = 10; // celebrate every N points
 const NEAR_MISS = 2.0; // squared hitbox distance below which a pass sparkles
 const PAUSE_ITEMS = ['RESUME', 'RESTART', 'MAIN MENU'];
@@ -35,8 +37,10 @@ export class PlayScene {
     this.d = DIFFICULTY[difficulty];
     this.color = color;
     this.style = style;
-    // Every run starts on a rainy morning; the day and the weather move on from there.
-    const sky = new Sky({ time: 0.12, cycle: DAY_LENGTH, dayNight, autoWeather: true, stormAfter: this.d.stormAfter });
+    // Every run starts in the morning, in any weather but a storm; the day and
+    // the weather move on from there.
+    const weather = choice(['rainy', 'rainy', 'sunny', 'hazy']);
+    const sky = new Sky({ time: 0.12, cycle: DAY_LENGTH, dayNight, weather, autoWeather: true, stormAfter: this.d.stormAfter });
     this.world = new World({ speed: this.d.speedStart, location: LOCATION_ORDER[0], lowFx: !fx, sky });
     this.world.softFlash = !flash;
     this.player = new Player(color, style);
@@ -48,7 +52,9 @@ export class PlayScene {
     this.t = 0;
     this.score = 0;
     this.lives = START_LIVES;
-    this.maxLives = START_LIVES;
+    this.maxLives = START_LIVES; // life slots shown; grows to 4 once the spare is earned
+    this.lifeGainT = 0;
+    this.streak = 0; // points in a row without getting hit (raises the score blip)
     this.prevBest = bestScore(game.data, 'arcade', difficulty);
     this.best = this.prevBest; // shown in the HUD, climbs with the score
     this.spawnT = 0.8;
@@ -99,13 +105,13 @@ export class PlayScene {
   }
 
   updatePause() {
-    const { input, display } = this.game;
+    const { input } = this.game;
     if (input.hit('pause')) {
       this.paused = false;
       return;
     }
     const rects = PAUSE_ITEMS.map((_, i) => ({ x: 20, y: 102 + i * 20 - 4, w: 140, h: 20 }));
-    const { sel, act } = navigate(input, display.layout, this.pauseSel, rects);
+    const { sel, act } = navigate(this.game, this.pauseSel, rects);
     this.pauseSel = sel;
     if (!act) return;
     input.hit('action');
@@ -130,6 +136,7 @@ export class PlayScene {
 
     this.bumpT = Math.max(0, this.bumpT - dt);
     this.lifeLostT = Math.max(0, this.lifeLostT - dt);
+    this.lifeGainT = Math.max(0, this.lifeGainT - dt);
     this.shake = Math.max(0, this.shake - dt);
     this.hitFlash = Math.max(0, this.hitFlash - dt);
     if (this.toasts.length && (this.toasts[0].t += dt) > TOAST_TIME) this.toasts.shift();
@@ -147,7 +154,9 @@ export class PlayScene {
     this.world.update(dt);
     this.handleSky();
     this.field.update(dt, this.world.speed * dt);
+    for (const e of this.field.takeEvents()) this.game.audio[e === 'ready' ? 'fieldReady' : 'fieldFade']();
     this.player.update(dt, this.state === 'play' ? input : null, this.world);
+    if (this.player.splashed) this.game.audio.puddle();
 
     if (this.state === 'play') {
       this.spawnT -= dt;
@@ -169,6 +178,7 @@ export class PlayScene {
 
     if (this.state === 'dying' && this.player.deadT > 1.3) {
       this.state = 'over';
+      this.game.audio.gameOver();
       this.newBest = this.score > this.prevBest;
       submitScore(this.game.data, 'arcade', this.diffKey, this.score);
     }
@@ -196,26 +206,43 @@ export class PlayScene {
 
   addPoint(n) {
     const p = this.player;
+    const audio = this.game.audio;
+    const pal = UMBRELLA_COLORS[p.color];
     this.score++;
+    this.streak++;
     this.best = Math.max(this.best, this.score);
     this.bumpT = 0.15;
-    this.field.bonus(FIELD_BONUS);
     if (n.minGap < NEAR_MISS && p.invT <= 0) {
-      // Squeezed past: sparkle in the gap.
+      // Squeezed past: sparkle in the gap, and the field charges faster.
       const mx = (n.x + p.x) / 2;
       const my = (n.y + p.y) / 2 - 10;
-      this.world.burst(mx, my, 8, UMBRELLA_COLORS[p.color].accent, 50);
-      this.popup('CLOSE!', mx, my - 6, { color: UMBRELLA_COLORS[p.color].light });
+      this.world.burst(mx, my, 8, pal.accent, 50);
+      this.popup('CLOSE!', mx, my - 6, { color: pal.light });
+      this.field.bonus(CLOSE_BONUS);
+      audio.close();
     } else {
       this.popup('+1', n.x, n.y - n.r);
+      audio.score(this.streak);
+    }
+    if (this.score % EXTRA_LIFE_EVERY === 0 && this.lives < MAX_LIVES) {
+      this.lives++;
+      this.maxLives = Math.max(this.maxLives, this.lives);
+      this.lifeGainT = 0.8;
+      this.popup('+1 LIFE', p.x, p.y - 44, { scale: 2, color: pal.light, life: 1.4 });
+      audio.lifeUp();
+    } else if (this.score % MILESTONE === 0) {
+      audio.milestone();
     }
     if (this.score % MILESTONE === 0) {
       this.bumpT = 0.6;
-      this.popup(`${this.score}!`, p.x, p.y - 30, { scale: 2, color: UMBRELLA_COLORS[p.color].light, life: 1.1 });
-      this.world.burst(p.x, p.y - 8, 18, UMBRELLA_COLORS[p.color].light, 90);
+      this.popup(`${this.score}!`, p.x, p.y - 30, { scale: 2, color: pal.light, life: 1.1 });
+      this.world.burst(p.x, p.y - 8, 18, pal.light, 90);
     }
     const loc = LOCATION_ORDER[Math.floor(this.score / POINTS_PER_LOCATION) % LOCATION_ORDER.length];
-    if (this.world.setLocation(loc)) this.toasts.push({ text: LOCATIONS[loc].name, t: 0 });
+    if (this.world.setLocation(loc)) {
+      this.toasts.push({ text: LOCATIONS[loc].name, t: 0 });
+      audio.newPlace();
+    }
   }
 
   handleSky() {
@@ -230,8 +257,10 @@ export class PlayScene {
           n.flipT = 1.2;
           n.wob = 1;
         }
+        this.game.audio.gust();
       } else if (e === 'thunder') {
         this.shakeFor(0.15);
+        this.game.audio.thunder(this.world.softFlash);
       }
     }
   }
@@ -275,6 +304,7 @@ export class PlayScene {
     this.world.animals.startle(p.x, p.y, FIELD_RADIUS * 1.2);
     this.freeze = 0.05;
     this.shakeFor(0.18);
+    this.game.audio.fieldFire();
   }
 
   // Every umbrella the expanding front reaches is shoved away and closes up
@@ -293,6 +323,7 @@ export class PlayScene {
         const d = Math.hypot(dx, dy) || 1;
         if (d > rf + n.r * 0.6) continue;
         n.shoo(dx / d, dy / d);
+        this.game.audio.shut();
         this.world.splash(n.x, n.y - n.r * 0.6, 6, PAL.splash, true, 50);
       }
       this.world.pushWater(w.x, w.y, rf);
@@ -312,6 +343,8 @@ export class PlayScene {
     p.invT = this.d.invuln;
     p.flashT = 0.12;
     this.lives--;
+    this.streak = 0;
+    this.game.audio.hit();
     this.lifeLostT = 0.6;
     this.freeze = 0.08;
     this.hitFlash = 0.15;

@@ -3,7 +3,9 @@ import { drawText, textWidth } from '../render/font.js';
 
 // Up/down moves the selection; Space/Enter or a tap on an item picks it.
 // `rects` are item boxes in playfield coordinates. Returns { sel, act }.
-export function navigate(input, L, sel, rects) {
+export function navigate(game, sel, rects) {
+  const { input, audio } = game;
+  const L = game.display.layout;
   let s = sel;
   let act = false;
   if (input.hit('up')) s = (s + rects.length - 1) % rects.length;
@@ -21,6 +23,8 @@ export function navigate(input, L, sel, rects) {
   } else if (input.hit('confirm')) {
     act = true;
   }
+  if (act) audio.menuSelect();
+  else if (s !== sel) audio.menuMove();
   return { sel: s, act };
 }
 

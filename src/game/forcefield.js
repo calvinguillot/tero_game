@@ -15,6 +15,13 @@ export class ForceField {
     this.charge = 1;
     this.waves = [];
     this.readyT = 0; // counts down after the field becomes ready again
+    this.events = []; // 'ready', 'fade' — for sounds
+  }
+
+  takeEvents() {
+    const e = this.events;
+    this.events = [];
+    return e;
   }
 
   get ready() {
@@ -46,7 +53,10 @@ export class ForceField {
   gain(amount) {
     if (this.ready) return;
     this.charge = Math.min(1, this.charge + amount);
-    if (this.ready) this.readyT = READY_FLASH;
+    if (this.ready) {
+      this.readyT = READY_FLASH;
+      this.events.push('ready');
+    }
   }
 
   update(dt, scroll) {
@@ -56,7 +66,9 @@ export class ForceField {
       w.t += dt;
       w.y += scroll;
     }
+    const before = this.waves.length;
     this.waves = this.waves.filter((w) => w.t < EXPAND + HOLD);
+    if (this.waves.length < before) this.events.push('fade');
   }
 
   draw(ctx, player) {
