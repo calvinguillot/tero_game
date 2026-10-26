@@ -23,12 +23,13 @@ const ROWS = [
   { key: 'fx', label: 'EFFECTS', list: [true, false], show: (v) => (v ? 'FULL' : 'LOW'), help: () => ['PUDDLE REFLECTIONS, DRIPS', 'AND SPRAY. LOW IS LIGHTER.'] },
   { key: 'shake', label: 'SHAKE', list: [true, false], show: (v) => (v ? 'ON' : 'OFF'), help: () => ['SCREEN SHAKE ON HITS', 'AND FORCE FIELD BURSTS.'] },
   { key: 'flash', label: 'LIGHTNING', list: [true, false], show: (v) => (v ? 'FULL' : 'SOFT'), help: () => ['HOW BRIGHT STORM FLASHES ARE.', 'SOFT IS EASIER ON THE EYES.'] },
-  { key: 'sound', label: 'SOUND', list: [true, false], show: (v) => (v ? 'ON' : 'OFF'), help: () => ['ALL SOUND: EFFECTS, RAIN', 'AND MUSIC.'] },
+  { key: 'sound', label: 'SOUND', list: [true, false], show: (v) => (v ? 'ON' : 'OFF'), help: () => ['EFFECTS: SCORES, CLOSE!,', 'HITS, FORCE FIELD, MENUS.'] },
   { key: 'music', label: 'MUSIC', list: [true, false], show: (v) => (v ? 'ON' : 'OFF'), help: () => ['A SOFT TUNE THAT CHANGES', 'KEY AT NIGHT.'] },
+  { key: 'rain', label: 'RAIN', list: [true, false], show: (v) => (v ? 'ON' : 'OFF'), help: () => ['RAIN, WIND, THUNDER,', 'BIRDS AND CRICKETS.'] },
   { key: null, label: 'BACK', help: () => ['SETTINGS SAVE AUTOMATICALLY.', ''] },
 ];
-const ROW_Y = 74;
-const ROW_H = 11;
+const ROW_Y = 68;
+const ROW_H = 10;
 
 export class SettingsScene {
   constructor(game) {
@@ -37,7 +38,7 @@ export class SettingsScene {
     this.sel = 0;
     this.t = 0;
     this.changeT = 0;
-    this.hero = heroUmbrella(game, 90, 46, 14);
+    this.hero = heroUmbrella(game, 90, 42, 12);
   }
 
   change(dir) {

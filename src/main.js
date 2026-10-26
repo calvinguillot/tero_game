@@ -81,6 +81,7 @@ function frame(now) {
   if (steps) game.input.endFrame();
   // Rain, wind and music follow whatever street is on screen.
   audio.duck = !!game.scene.paused;
+  audio.rush = game.scene.rushT > 0 && !game.scene.demo;
   audio.update(steps * STEP, game.scene.world ?? game.backdrop.world);
   game.scene.draw(display.ctx, display.layout);
   if (game.wipe) {

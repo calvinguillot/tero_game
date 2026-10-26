@@ -156,19 +156,44 @@ const PAGES = [
         'FROM MORNING TO NIGHT. AT',
         'NIGHT, STREET LAMPS LIGHT',
         'THE WAY. THE WEATHER CHANGES',
-        'TOO, AND IT MATTERS:',
+        'EVERY HALF MINUTE OR SO:',
         '',
-        '!SUNNY',
-        'UMBRELLAS CLOSE: THINNER TO',
-        'DODGE. BUT PUDDLES ARE SLICK.',
+        '!RAINY AND DRIZZLE',
+        'THE EVERYDAY STREET.',
         '!HAZY',
-        'FOG HIDES WHO IS COMING.',
-        'WATCH THEIR SHADOWS.',
+        'FOG HIDES WHO IS COMING',
+        'DOWN THE STREET.',
         '!STORMY',
         'HEAVY RAIN AND LIGHTNING.',
         'GUSTS PUSH YOU SIDEWAYS -',
         'WIND >>> WARNS YOU FIRST.',
       ], 14, 32, 10);
+    },
+  },
+  {
+    title: 'SUN RUSH',
+    draw(ctx, t) {
+      lines(ctx, [
+        'EVERY CLOSE! NEAR MISS IS',
+        'COUNTED UNDER YOUR SCORE.',
+        '',
+        '!AT 20 CLOSE!, THE SUN',
+        '!BREAKS THROUGH FOR FIVE',
+        '!SECONDS:',
+        '',
+        '- EVERYONE SHUTS THEIR',
+        '  UMBRELLA.',
+        '- YOU RUN, AND NOTHING CAN',
+        '  HURT YOU.',
+        '- EVERY UMBRELLA YOU PASS OR',
+        '  BUMP SCORES, EVEN CLOSED',
+        '  ONES.',
+      ], 14, 32, 10);
+      umbrella(ctx, 'npc', 12, 52, 196, 'classic', 'stick', 0.15);
+      umbrella(ctx, 'npcSand', 12, 128, 190, 'classic', 'stick', 0.15);
+      umbrella(ctx, menuColor, 14, 90, 200, menuStyle, 'j');
+      if (Math.floor(t * 4) % 2 === 0) caption(ctx, '+1', 52, 172);
+      else caption(ctx, '+1', 128, 166);
     },
   },
   {

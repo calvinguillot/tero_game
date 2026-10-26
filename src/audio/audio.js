@@ -1,17 +1,22 @@
 import { rand, choice, clamp } from '../core/math.js';
 
 // Everything you hear is synthesised with the Web Audio API: chiptune-style
-// effects, a rain/wind bed that follows the weather, little day and night
-// sounds, and an optional soft pentatonic tune. Browsers only allow audio
-// after a key press or tap, so the graph is built on the first one (unlock).
+// effects, rain made of individual drops (sparse for a drizzle, a downpour in
+// a storm), wind and thunder, little day and night sounds, and a soft
+// pentatonic tune. Browsers only allow audio after a key press or tap, so the
+// graph is built on the first one (unlock).
 //
-// Buses: sfx, ambience and music, into a master gain and a gentle compressor.
+// Three buses, each with its own setting: sfx (SOUND), music (MUSIC) and
+// ambience (RAIN), into a master gain and a gentle compressor.
 
 const SCALES = {
   day: { root: 261.63, steps: [0, 2, 4, 7, 9] }, // C major pentatonic
   night: { root: 220.0, steps: [0, 3, 5, 7, 10] }, // A minor pentatonic
 };
 const BEAT = 0.34; // seconds per music step
+const SFX_VOL = 0.55;
+const AMB_VOL = 0.7;
+const MUSIC_VOL = 0.22;
 
 const semis = (f, n) => f * 2 ** (n / 12);
 
@@ -20,6 +25,8 @@ export class AudioEngine {
     this.settings = settings;
     this.ctx = null;
     this.duck = false; // quieter ambience while paused
+    this.rush = false; // SUN RUSH: brighter, double-time music
+    this.dropAcc = 0;
     this.step = 0;
     this.nextNote = 0;
     this.melody = 2;
@@ -47,25 +54,35 @@ export class AudioEngine {
     comp.threshold.value = -14;
     comp.ratio.value = 4;
     comp.connect(c.destination);
-    this.master = this.gain(this.settings.sound ? 0.8 : 0, comp);
-    this.sfx = this.gain(0.55, this.master);
-    this.amb = this.gain(0.7, this.master);
-    this.music = this.gain(this.settings.music ? 0.22 : 0, this.master);
+    const s = this.settings;
+    this.master = this.gain(0.8, comp);
+    this.sfx = this.gain(s.sound ? SFX_VOL : 0, this.master);
+    this.amb = this.gain(s.rain ? AMB_VOL : 0, this.master);
+    this.music = this.gain(s.music ? MUSIC_VOL : 0, this.master);
 
-    // Two seconds of white noise, reused by every noisy sound.
+    // Two seconds of white noise for short bursts, and of brown noise (much
+    // softer, mostly low) for the steady beds.
     this.noiseBuf = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
     const d = this.noiseBuf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    this.brownBuf = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
+    const b = this.brownBuf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < b.length; i++) {
+      last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02;
+      b[i] = last * 3.5;
+    }
 
-    // Rain: hiss band plus a low roar that only comes in for heavy rain.
-    this.rainG = this.gain(0, this.amb);
-    this.loopNoise([this.filter('highpass', 500), this.filter('lowpass', 4200)], this.rainG);
+    // Rain is mostly individual drops (see rainDrops); under steady rain a
+    // soft, low wash comes in, and a deeper roar in storms.
+    this.washG = this.gain(0, this.amb);
+    this.loopNoise(this.brownBuf, [this.filter('lowpass', 1100)], this.washG);
     this.roarG = this.gain(0, this.amb);
-    this.loopNoise([this.filter('lowpass', 320)], this.roarG);
-    // Wind: a resonant band that wanders.
+    this.loopNoise(this.brownBuf, [this.filter('lowpass', 260)], this.roarG);
+    // Wind: a wandering band of the soft noise.
     this.windG = this.gain(0, this.amb);
-    this.windF = this.filter('bandpass', 500, 4);
-    this.loopNoise([this.windF], this.windG);
+    this.windF = this.filter('bandpass', 500, 2);
+    this.loopNoise(this.brownBuf, [this.windF], this.windG);
     this.nextNote = c.currentTime + 0.2;
   }
 
@@ -86,9 +103,9 @@ export class AudioEngine {
     return f;
   }
 
-  loopNoise(chain, dest) {
+  loopNoise(buffer, chain, dest) {
     const src = this.ctx.createBufferSource();
-    src.buffer = this.noiseBuf;
+    src.buffer = buffer;
     src.loop = true;
     let node = src;
     for (const f of chain) node = node.connect(f);
@@ -194,8 +211,17 @@ export class AudioEngine {
   thunder(soft) {
     const at = rand(0.25, 1.1);
     const v = soft ? 0.35 : 0.6;
-    if (at < 0.5) this.noise({ type: 'highpass', f0: 1800, dur: 0.15, vol: v * 0.4, at });
+    if (at < 0.5) this.noise({ type: 'highpass', f0: 1800, dur: 0.15, vol: v * 0.4, at, dest: this.amb });
     this.noise({ type: 'lowpass', f0: 500, f1: 60, dur: 2.6, vol: v, attack: 0.08, at, dest: this.amb });
+  }
+
+  rushStart() {
+    [0, 4, 7, 11, 12, 16, 19, 24].forEach((n, i) => this.tone({ type: 'triangle', f0: semis(523, n), dur: 0.12, vol: 0.13, at: i * 0.045 }));
+    this.tone({ type: 'sine', f0: 1046, f1: 2093, dur: 0.5, vol: 0.06, at: 0.3 });
+  }
+
+  rushEnd() {
+    [12, 7, 4, 0].forEach((n, i) => this.tone({ type: 'triangle', f0: semis(523, n), dur: 0.16, vol: 0.08, at: i * 0.08 }));
   }
 
   gust() {
@@ -223,18 +249,24 @@ export class AudioEngine {
   update(dt, world) {
     if (!this.ctx) return;
     const s = this.settings;
-    this.set(this.master.gain, s.sound ? 0.8 : 0, 0.05);
-    this.set(this.music.gain, s.music && !this.duck ? 0.22 : 0, 0.3);
+    this.set(this.sfx.gain, s.sound ? SFX_VOL : 0, 0.05);
+    this.set(this.music.gain, s.music && !this.duck ? MUSIC_VOL : 0, 0.3);
+    this.set(this.amb.gain, s.rain ? AMB_VOL * (this.duck ? 0.35 : 1) : 0, 0.2);
     if (!this.ready || !world) return;
-
     const sky = world.sky;
+    if (s.rain) this.ambience(dt, sky);
+    this.playMusic(sky);
+  }
+
+  ambience(dt, sky) {
     const rain = sky.p.rain;
-    const duck = this.duck ? 0.35 : 1;
-    this.set(this.rainG.gain, Math.min(1.4, rain) * 0.2 * duck);
-    this.set(this.roarG.gain, clamp(rain - 1, 0, 1.2) * 0.35 * duck);
+    // The wash only comes in for real rain; the roar only for storms.
+    this.set(this.washG.gain, clamp(rain - 0.5, 0, 1.7) * 0.09);
+    this.set(this.roarG.gain, clamp(rain - 1.2, 0, 1) * 0.3);
     const wind = Math.abs(sky.wind) / 55;
-    this.set(this.windG.gain, (wind * 0.5 + sky.p.wind * 0.04) * duck, 0.25);
+    this.set(this.windG.gain, wind * 0.55 + sky.p.wind * 0.05, 0.25);
     this.set(this.windF.frequency, 380 + wind * 600 + Math.sin(sky.age * 0.7) * 120, 0.3);
+    this.rainDrops(dt, rain);
 
     // Crickets on dry-ish nights, birds on bright days.
     if ((this.chirpT -= dt) <= 0) {
@@ -242,8 +274,33 @@ export class AudioEngine {
       if (sky.night > 0.6 && rain < 0.6) this.cricket();
       else if (sky.night < 0.2 && rain < 0.5) this.bird();
     }
+  }
 
-    this.playMusic(sky);
+  // Rain as separate drops: short pats on pavement and fabric, and the odd
+  // bright "plip" in a puddle. A drizzle is a few drops you can count; a
+  // storm is a dense patter.
+  rainDrops(dt, rain) {
+    if (rain < 0.05) return;
+    // Drops per second: ~9 in a drizzle, ~28 in rain, ~80 in a storm.
+    this.dropAcc += (2 + rain ** 1.4 * 26) * dt;
+    const n = Math.min(8, Math.floor(this.dropAcc));
+    this.dropAcc -= n;
+    const sparse = rain < 0.6;
+    for (let i = 0; i < n; i++) {
+      const at = rand(0, Math.max(dt, 0.016));
+      const r = Math.random();
+      if (r < (sparse ? 0.3 : 0.12)) {
+        // Plip: a drop into standing water.
+        const f = rand(1400, 2600);
+        this.tone({ type: 'sine', f0: f, f1: f * 0.6, dur: 0.05, vol: rand(0.012, 0.03), attack: 0.002, at, dest: this.amb });
+      } else if (r < 0.45) {
+        // Pat: a drop on an umbrella.
+        this.noise({ f0: rand(500, 900), q: 1.2, dur: rand(0.03, 0.05), vol: rand(0.03, 0.06), attack: 0.002, at, dest: this.amb });
+      } else {
+        // Tick: a drop on the pavement.
+        this.noise({ f0: rand(2500, 5500), q: 2.5, dur: rand(0.012, 0.025), vol: rand(0.02, 0.05) * (sparse ? 1.3 : 1), attack: 0.001, at, dest: this.amb });
+      }
+    }
   }
 
   cricket() {
@@ -257,24 +314,25 @@ export class AudioEngine {
   }
 
   // A wandering pentatonic line over a soft bass, in a major key by day and
-  // a minor one by night; quieter and sparser in storms.
+  // a minor one by night; sparser in storms, bright and double-time in a rush.
   playMusic(sky) {
     const c = this.ctx;
-    const scale = sky.night > 0.5 ? SCALES.night : SCALES.day;
+    const scale = sky.night > 0.5 && !this.rush ? SCALES.night : SCALES.day;
+    const beat = this.rush ? BEAT / 2 : BEAT;
     while (this.nextNote < c.currentTime + 0.2) {
       const at = this.nextNote - c.currentTime;
       if (this.step % 8 === 0) {
         const bass = scale.root / 2;
-        this.tone({ type: 'triangle', f0: this.step % 16 === 0 ? bass : semis(bass, scale.steps[3]), dur: BEAT * 3.5, vol: 0.12, attack: 0.03, at, dest: this.music });
+        this.tone({ type: 'triangle', f0: this.step % 16 === 0 ? bass : semis(bass, scale.steps[3]), dur: beat * 3.5, vol: 0.12, attack: 0.03, at, dest: this.music });
       }
-      const rest = sky.p.wind > 0.5 ? 0.6 : 0.3;
+      const rest = this.rush ? 0.05 : sky.p.wind > 0.5 ? 0.6 : 0.3;
       if (Math.random() > rest) {
         this.melody = clamp(this.melody + choice([-2, -1, -1, 1, 1, 2]), 0, 9);
         const step = scale.steps[this.melody % 5] + 12 * Math.floor(this.melody / 5);
-        this.tone({ type: 'triangle', f0: semis(scale.root, step), dur: BEAT * 1.6, vol: 0.09, attack: 0.01, at, dest: this.music });
+        this.tone({ type: 'triangle', f0: semis(scale.root, step), dur: beat * 1.6, vol: 0.09, attack: 0.01, at, dest: this.music });
       }
       this.step++;
-      this.nextNote += BEAT;
+      this.nextNote += beat;
     }
   }
 }

@@ -7,8 +7,10 @@ import { drawHud } from '../ui/hud.js';
 import { inPlayfield } from './street.js';
 import { menuHud, heroUmbrella } from './backdrop.js';
 import { MenuScene } from './menu.js';
+import { PlayScene } from './play.js';
 
 const GROUND_Y = 172; // where the floating umbrella's shadow falls
+const ATTRACT_AFTER = 12; // seconds idle before the demo starts
 
 // After the original home screen: the wordmark, and a big umbrella floating
 // over its own shadow while the rain ripples the still street.
@@ -32,6 +34,9 @@ export class SplashScene {
     if (this.game.input.hit('confirm') || this.game.input.hit('action')) {
       this.game.audio.menuSelect();
       this.game.go(new MenuScene(this.game));
+    } else if (this.t > ATTRACT_AFTER) {
+      // Left alone, the game shows itself off.
+      this.game.go(new PlayScene(this.game, { demo: true }));
     }
     this.game.input.takeTap();
   }

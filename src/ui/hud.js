@@ -3,9 +3,12 @@ import { drawText } from '../render/font.js';
 import { umbrellaSprite } from '../render/umbrella.js';
 import { drawJoystick, drawButton, drawChargeBar, drawKey } from './controls.js';
 
+const RUSH_GOLD = '#ffd27a';
+
 // Arcade-cabinet side panels (desktop) or top/bottom strips (phones).
 // s: { title, score, best, lives, maxLives, color, style, bumpT, lifeLostT,
-//      charge, ready, location, nextAt, level, timeName, weatherName, t }
+//      charge, ready, location, nextAt, level, timeName, weatherName,
+//      rush: { count, every, left }, t }
 
 // Pointer zones in buffer pixels; checked in order.
 const ZONES = {
@@ -88,12 +91,13 @@ function landscape(ctx, s, input) {
   if (!s.title) {
     label(ctx, 'SCORE', 35, 9);
     score(ctx, s, 35, 18, 3);
+    rushMeter(ctx, s, 35, 37, 48);
   }
-  label(ctx, 'BEST', 35, 42);
-  drawText(ctx, s.best, 35, 50, PAL.text, { scale: 2, shadow: PAL.textShadow, align: 'center' });
+  label(ctx, 'BEST', 35, 56);
+  drawText(ctx, s.best, 35, 64, PAL.text, { scale: 2, shadow: PAL.textShadow, align: 'center' });
   if (!s.title) {
-    label(ctx, 'LIVES', 35, 68);
-    lives(ctx, s, 35, 88, 20);
+    label(ctx, 'LIVES', 35, 82);
+    lives(ctx, s, 35, 102, 20);
   }
   label(ctx, 'MOVE', 35, 150);
   drawJoystick(ctx, 35, 198, v, s.color);
@@ -106,7 +110,7 @@ function landscape(ctx, s, input) {
   label(ctx, s.level, 285, 46);
   if (s.timeName) {
     label(ctx, s.timeName, 285, 62, PAL.text);
-    label(ctx, s.weatherName, 285, 72, s.weatherName === 'STORMY' ? '#ffd27a' : PAL.text);
+    label(ctx, s.weatherName, 285, 72, s.weatherName === 'STORMY' || s.weatherName === 'SUN RUSH' ? RUSH_GOLD : PAL.text);
   }
   label(ctx, 'FORCE FIELD', 285, 140);
   drawButton(ctx, 285, 168, pressed, s.ready, s.color, s.t);
@@ -135,5 +139,30 @@ function portrait(ctx, s, input) {
   if (s.weatherName) label(ctx, s.weatherName, 90, 279);
   label(ctx, 'FIELD', 90, 288);
   drawChargeBar(ctx, 90, 296, 30, s.charge, s.ready, s.color, s.t);
-  if (s.nextAt != null) label(ctx, `NEXT ${s.nextAt}`, 90, 306);
+  if (s.rush) rushMeter(ctx, s, 90, 305, 40, true);
+}
+
+// CLOSE! near misses collected towards the next SUN RUSH; during the rush, a
+// gold bar running down.
+function rushMeter(ctx, s, cx, y, w, compact = false) {
+  const r = s.rush;
+  if (!r) return;
+  const x = Math.round(cx - w / 2);
+  const barY = compact ? y + 7 : y + 8;
+  if (r.left > 0) {
+    if (Math.floor(s.t * 6) % 2 === 0) label(ctx, 'SUN RUSH!', cx, y, RUSH_GOLD);
+    bar(ctx, x, barY, w, r.left, RUSH_GOLD);
+  } else {
+    label(ctx, `CLOSE ${r.count}/${r.every}`, cx, y);
+    bar(ctx, x, barY, w, r.count / r.every, UMBRELLA_COLORS[s.color].light);
+  }
+}
+
+function bar(ctx, x, y, w, k, color) {
+  ctx.fillStyle = PAL.textShadow;
+  ctx.fillRect(x - 1, y - 1, w + 2, 4);
+  ctx.fillStyle = PAL.keySide;
+  ctx.fillRect(x, y, w, 2);
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, Math.round(w * Math.max(0, Math.min(1, k))), 2);
 }

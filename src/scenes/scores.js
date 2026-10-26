@@ -53,9 +53,10 @@ export class ScoresScene {
         const y = 54 + i * 16;
         const top = i === 0;
         const col = top ? PAL.text : PAL.textDim;
-        drawText(ctx, `${i + 1}.`, 24, y + 2, col, { shadow: PAL.textShadow });
-        drawText(ctx, e.score, 84, y, top ? '#ffffff' : PAL.text, { shadow: PAL.textShadow, scale: 2, align: 'right' });
-        drawText(ctx, e.date, 154, y + 2, col, { shadow: PAL.textShadow, align: 'right' });
+        drawText(ctx, `${i + 1}.`, 22, y + 2, col, { shadow: PAL.textShadow });
+        drawText(ctx, e.name || '---', 36, y + 2, top ? '#ffffff' : PAL.text, { shadow: PAL.textShadow });
+        drawText(ctx, e.score, 102, y, top ? '#ffffff' : PAL.text, { shadow: PAL.textShadow, scale: 2, align: 'right' });
+        drawText(ctx, e.date.slice(2), 158, y + 2, col, { shadow: PAL.textShadow, align: 'right' });
       });
       hint(ctx, 'LEFT/RIGHT: LEVEL   ESC: BACK', 214);
     });

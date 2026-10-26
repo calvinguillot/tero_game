@@ -2,7 +2,7 @@ const KEY = 'rainyday.v1';
 
 const DEFAULTS = {
   version: 1,
-  settings: { color: 'mint', style: 'classic', difficulty: 'normal', sound: true, music: true, fx: true, shake: true, flash: true, dayNight: true },
+  settings: { color: 'mint', style: 'classic', difficulty: 'normal', initials: 'AAA', sound: true, music: true, rain: true, fx: true, shake: true, flash: true, dayNight: true },
   highScores: { arcade: { easy: [], normal: [], hard: [] } },
 };
 
@@ -39,11 +39,22 @@ export function bestScore(data, mode, difficulty) {
   return list && list.length ? list[0].score : 0;
 }
 
-export function submitScore(data, mode, difficulty, score) {
+const TABLE_SIZE = 10;
+
+// 1-based place this score would take in the table, or 0 if it doesn't make it.
+export function scoreRank(data, mode, difficulty, score) {
+  if (score <= 0) return 0;
+  const list = data.highScores[mode]?.[difficulty] ?? [];
+  const i = list.findIndex((e) => score > e.score);
+  if (i >= 0) return i + 1;
+  return list.length < TABLE_SIZE ? list.length + 1 : 0;
+}
+
+export function submitScore(data, mode, difficulty, score, name = '') {
   const table = (data.highScores[mode] ??= {});
   const list = (table[difficulty] ??= []);
-  list.push({ score, date: new Date().toISOString().slice(0, 10) });
+  list.push({ score, name, date: new Date().toISOString().slice(0, 10) });
   list.sort((a, b) => b.score - a.score);
-  list.length = Math.min(list.length, 10);
+  list.length = Math.min(list.length, TABLE_SIZE);
   saveData(data);
 }

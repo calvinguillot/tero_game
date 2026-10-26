@@ -1,20 +1,28 @@
-import { World } from '../world/world.js';
-import { Sky } from '../world/sky.js';
-import { LOCATIONS, LOCATION_ORDER } from '../world/locations.js';
-import { Player } from '../game/player.js';
-import { Npc, separate } from '../game/npc.js';
-import { ForceField, FIELD_RADIUS } from '../game/forcefield.js';
-import { DIFFICULTY, intensity, spawnWeights } from '../game/difficulty.js';
-import { overlapRatio } from '../game/collision.js';
-import { bestScore, submitScore } from '../core/storage.js';
-import { lerp, rand, pick, choice } from '../core/math.js';
-import { PAL, UMBRELLA_COLORS } from '../render/palette.js';
-import { drawText } from '../render/font.js';
-import { drawHud } from '../ui/hud.js';
-import { navigate, plate, menuItem } from '../ui/menu.js';
-import { PF_W, PF_H, GROUND_L, GROUND_R } from '../config.js';
-import { inPlayfield, drawStreet } from './street.js';
-import { MenuScene } from './menu.js';
+import { World } from "../world/world.js";
+import { Sky } from "../world/sky.js";
+import { LOCATIONS, LOCATION_ORDER } from "../world/locations.js";
+import { Player } from "../game/player.js";
+import { Npc, separate } from "../game/npc.js";
+import { ForceField, FIELD_RADIUS } from "../game/forcefield.js";
+import { DIFFICULTY, intensity, spawnWeights } from "../game/difficulty.js";
+import { overlapRatio } from "../game/collision.js";
+import { Autopilot } from "../game/autopilot.js";
+import {
+  bestScore,
+  submitScore,
+  scoreRank,
+  saveData,
+} from "../core/storage.js";
+import { lerp, rand, pick, choice } from "../core/math.js";
+import { PAL, UMBRELLA_COLORS } from "../render/palette.js";
+import { drawText } from "../render/font.js";
+import { drawHud } from "../ui/hud.js";
+import { navigate, plate, menuItem } from "../ui/menu.js";
+import { InitialsEntry } from "../ui/initials.js";
+import { PF_W, PF_H, GROUND_L, GROUND_R } from "../config.js";
+import { inPlayfield, drawStreet } from "./street.js";
+import { MenuScene } from "./menu.js";
+import { SplashScene } from "./splash.js";
 
 const START_LIVES = 3;
 const MAX_LIVES = 4; // one spare life at most
@@ -23,29 +31,55 @@ const POINTS_PER_LOCATION = 25;
 const CLOSE_BONUS = 2; // seconds of field recharge for a near miss
 const MILESTONE = 10; // celebrate every N points
 const NEAR_MISS = 2.0; // squared hitbox distance below which a pass sparkles
-const PAUSE_ITEMS = ['RESUME', 'RESTART', 'MAIN MENU'];
+const RUSH_EVERY = 20; // CLOSE! near misses needed for a SUN RUSH
+const RUSH_TIME = 5; // seconds
+const RUSH_SPEED = 1.7; // street speed multiplier while rushing
+const PAUSE_ITEMS = ["RESUME", "RESTART", "MAIN MENU"];
 const DAY_LENGTH = 240; // seconds for a full day in arcade
 const TOAST_TIME = 2.6;
-const WEATHER_NEWS = { rainy: 'RAIN AGAIN', sunny: 'SUN IS OUT', hazy: 'HAZE ROLLS IN', stormy: 'STORM!' };
+const DEMO_TIME = 30; // seconds of attract-mode play before going back to the title
+const WEATHER_NEWS = {
+  rainy: "RAIN AGAIN",
+  drizzle: "JUST A DRIZZLE",
+  hazy: "HAZE ROLLS IN",
+  stormy: "STORM!",
+};
 
 // Arcade mode: dodge the crowd, +1 for every umbrella that gets past you.
+// With { demo: true } it plays itself (attract mode), silently and without
+// touching the high scores.
 export class PlayScene {
-  constructor(game) {
+  constructor(game, { demo = false } = {}) {
     this.game = game;
-    const { difficulty, color, style, fx, flash, dayNight } = game.data.settings;
+    this.demo = demo;
+    const { difficulty, color, style, fx, flash, dayNight } =
+      game.data.settings;
     this.diffKey = difficulty;
     this.d = DIFFICULTY[difficulty];
     this.color = color;
     this.style = style;
     // Every run starts in the morning, in any weather but a storm; the day and
     // the weather move on from there.
-    const weather = choice(['rainy', 'rainy', 'sunny', 'hazy']);
-    const sky = new Sky({ time: 0.12, cycle: DAY_LENGTH, dayNight, weather, autoWeather: true, stormAfter: this.d.stormAfter });
-    this.world = new World({ speed: this.d.speedStart, location: LOCATION_ORDER[0], lowFx: !fx, sky });
+    const weather = choice(["rainy", "drizzle", "hazy"]);
+    const sky = new Sky({
+      time: 0.12,
+      cycle: DAY_LENGTH,
+      dayNight,
+      weather,
+      autoWeather: true,
+      stormAfter: this.d.stormAfter,
+    });
+    this.world = new World({
+      speed: this.d.speedStart,
+      location: LOCATION_ORDER[0],
+      lowFx: !fx,
+      sky,
+    });
     this.world.softFlash = !flash;
     this.player = new Player(color, style);
     this.world.player = this.player;
     this.field = new ForceField(this.d.recharge);
+    this.ai = demo ? new Autopilot(this) : null;
     this.npcs = [];
     this.popups = [];
     this.toasts = []; // banners shown one after another: { text, t }
@@ -55,7 +89,11 @@ export class PlayScene {
     this.maxLives = START_LIVES; // life slots shown; grows to 4 once the spare is earned
     this.lifeGainT = 0;
     this.streak = 0; // points in a row without getting hit (raises the score blip)
-    this.prevBest = bestScore(game.data, 'arcade', difficulty);
+    this.closeCount = 0; // CLOSE! near misses towards the next SUN RUSH
+    this.rushT = 0;
+    this.rushWeather = null; // weather to go back to after the rush
+    this.quietWeather = 0; // weather changes the rush makes itself: no banner
+    this.prevBest = bestScore(game.data, "arcade", difficulty);
     this.best = this.prevBest; // shown in the HUD, climbs with the score
     this.spawnT = 0.8;
     this.freeze = 0;
@@ -63,8 +101,10 @@ export class PlayScene {
     this.hitFlash = 0;
     this.bumpT = 0;
     this.lifeLostT = 0;
-    this.state = 'play'; // play | dying | over
+    this.state = "play"; // play | dying | initials | over
     this.overT = 0;
+    this.rank = 0;
+    this.entry = null;
     this.paused = false;
     this.pauseSel = 0;
     this.newBest = false;
@@ -81,7 +121,9 @@ export class PlayScene {
     return this.world.topLocation.name;
   }
   get nextAt() {
-    return (Math.floor(this.score / POINTS_PER_LOCATION) + 1) * POINTS_PER_LOCATION;
+    return (
+      (Math.floor(this.score / POINTS_PER_LOCATION) + 1) * POINTS_PER_LOCATION
+    );
   }
   get level() {
     return this.d.name;
@@ -90,47 +132,85 @@ export class PlayScene {
     return this.world.sky.timeName;
   }
   get weatherName() {
-    return this.world.sky.weather.name;
+    return this.rushT > 0 ? "SUN RUSH" : this.world.sky.weather.name;
+  }
+  get rush() {
+    return {
+      count: this.closeCount,
+      every: RUSH_EVERY,
+      left: this.rushT / RUSH_TIME,
+    };
+  }
+
+  // Sound effects; the demo plays silently.
+  sound(name, ...args) {
+    if (!this.demo) this.game.audio[name](...args);
   }
 
   pause() {
-    if (this.state === 'play') {
+    if (this.state === "play") {
       this.paused = true;
       this.pauseSel = 0;
     }
   }
 
   shakeFor(seconds) {
-    if (this.game.data.settings.shake) this.shake = Math.max(this.shake, seconds);
+    if (this.game.data.settings.shake)
+      this.shake = Math.max(this.shake, seconds);
   }
 
   updatePause() {
     const { input } = this.game;
-    if (input.hit('pause')) {
+    if (input.hit("pause")) {
       this.paused = false;
       return;
     }
-    const rects = PAUSE_ITEMS.map((_, i) => ({ x: 20, y: 102 + i * 20 - 4, w: 140, h: 20 }));
+    const rects = PAUSE_ITEMS.map((_, i) => ({
+      x: 20,
+      y: 102 + i * 20 - 4,
+      w: 140,
+      h: 20,
+    }));
     const { sel, act } = navigate(this.game, this.pauseSel, rects);
     this.pauseSel = sel;
     if (!act) return;
-    input.hit('action');
+    input.hit("action");
     if (sel === 0) this.paused = false;
     else if (sel === 1) this.game.go(new PlayScene(this.game));
     else this.game.go(new MenuScene(this.game));
+  }
+
+  // Attract mode: any press goes to the menu; it ends by itself after a while.
+  updateDemo(dt) {
+    const { input } = this.game;
+    if (input.hit("confirm") || input.hit("action") || input.hit("pause")) {
+      this.game.go(new MenuScene(this.game));
+      return true;
+    }
+    if (this.t > DEMO_TIME || this.state === "over") {
+      this.game.go(new SplashScene(this.game));
+      return true;
+    }
+    this.ai.update(dt);
+    return false;
   }
 
   update(dt) {
     const { input } = this.game;
     this.t += dt;
 
+    if (this.demo && this.updateDemo(dt)) return;
     if (this.paused) return this.updatePause();
-    if (this.state === 'play' && input.hit('pause')) return this.pause();
-    if (this.state === 'over') {
+    if (this.state === "play" && !this.demo && input.hit("pause"))
+      return this.pause();
+    if (this.state === "initials") {
+      this.entry.update(dt, this.game);
+      if (this.entry.done) this.finishInitials();
+    } else if (this.state === "over") {
       this.overT += dt;
       if (this.overT > 0.6) {
-        if (input.hit('confirm')) return this.game.go(new PlayScene(this.game));
-        if (input.hit('pause')) return this.game.go(new MenuScene(this.game));
+        if (input.hit("confirm")) return this.game.go(new PlayScene(this.game));
+        if (input.hit("pause")) return this.game.go(new MenuScene(this.game));
       }
     }
 
@@ -139,29 +219,51 @@ export class PlayScene {
     this.lifeGainT = Math.max(0, this.lifeGainT - dt);
     this.shake = Math.max(0, this.shake - dt);
     this.hitFlash = Math.max(0, this.hitFlash - dt);
-    if (this.toasts.length && (this.toasts[0].t += dt) > TOAST_TIME) this.toasts.shift();
+    if (this.toasts.length && (this.toasts[0].t += dt) > TOAST_TIME)
+      this.toasts.shift();
     // Hit-stop: freeze the action for a few frames on impact.
     if (this.freeze > 0) {
       this.freeze -= dt;
       return;
     }
 
-    if (this.state === 'play' && input.hit('action')) this.fireField();
+    const playing = this.state === "play";
+    if (playing && (this.demo ? this.ai.takeBurst() : input.hit("action")))
+      this.fireField();
+    if (this.rushT > 0 && (this.rushT -= dt) <= 0) this.endRush();
 
     const I = intensity(this.score);
-    this.world.speed = this.state === 'play' ? lerp(this.d.speedStart, this.d.speedMax, I) : lerp(this.world.speed, 12, dt * 2);
+    if (playing) {
+      // The street speeds up while rushing, easing in and out.
+      const r =
+        this.rushT > 0
+          ? Math.min(1, this.rushT / 0.5, (RUSH_TIME - this.rushT) / 0.5)
+          : 0;
+      this.world.speed =
+        lerp(this.d.speedStart, this.d.speedMax, I) * lerp(1, RUSH_SPEED, r);
+    } else {
+      this.world.speed = lerp(this.world.speed, 12, dt * 2);
+    }
     this.world.umbrellas = this.npcs.concat(this.player);
     this.world.update(dt);
     this.handleSky();
     this.field.update(dt, this.world.speed * dt);
-    for (const e of this.field.takeEvents()) this.game.audio[e === 'ready' ? 'fieldReady' : 'fieldFade']();
-    this.player.update(dt, this.state === 'play' ? input : null, this.world);
-    if (this.player.splashed) this.game.audio.puddle();
+    for (const e of this.field.takeEvents())
+      this.sound(e === "ready" ? "fieldReady" : "fieldFade");
+    this.player.update(
+      dt,
+      playing ? (this.demo ? this.ai : input) : null,
+      this.world,
+    );
+    if (this.player.splashed) this.sound("puddle");
 
-    if (this.state === 'play') {
+    if (playing) {
       this.spawnT -= dt;
       if (this.spawnT <= 0) {
-        this.spawnT = lerp(this.d.spawnStart, this.d.spawnMin, I) * rand(0.75, 1.25);
+        this.spawnT =
+          lerp(this.d.spawnStart, this.d.spawnMin, I) *
+          rand(0.75, 1.25) *
+          (this.rushT > 0 ? 0.5 : 1);
         this.spawn();
       }
     }
@@ -171,28 +273,51 @@ export class PlayScene {
     this.applyField();
     this.npcs = this.npcs.filter((n) => n.y < PF_H + 30 && n.y > -80);
 
-    if (this.state === 'play') this.checkNpcs();
+    if (playing) this.checkNpcs();
 
     for (const p of this.popups) p.t += dt;
     this.popups = this.popups.filter((p) => p.t < p.life);
 
-    if (this.state === 'dying' && this.player.deadT > 1.3) {
-      this.state = 'over';
-      this.game.audio.gameOver();
-      this.newBest = this.score > this.prevBest;
-      submitScore(this.game.data, 'arcade', this.diffKey, this.score);
+    if (this.state === "dying" && this.player.deadT > 1.3) this.gameOver();
+  }
+
+  gameOver() {
+    this.newBest = this.score > this.prevBest;
+    this.rank = this.demo
+      ? 0
+      : scoreRank(this.game.data, "arcade", this.diffKey, this.score);
+    if (this.rank) {
+      // Made the table: sign it, arcade style.
+      this.state = "initials";
+      this.entry = new InitialsEntry(this.game.data.settings.initials);
+      this.sound("lifeUp");
+    } else {
+      this.state = "over";
+      this.sound("gameOver");
     }
+  }
+
+  finishInitials() {
+    const { data } = this.game;
+    data.settings.initials = this.entry.name;
+    submitScore(data, "arcade", this.diffKey, this.score, this.entry.name);
+    saveData(data);
+    this.state = "over";
+    this.overT = 0;
   }
 
   checkNpcs() {
     const p = this.player;
+    const rushing = this.rushT > 0;
     for (const n of this.npcs) {
-      if (n.touched || n.shooed) continue;
+      if (n.touched || (n.shooed && !rushing)) continue;
       const gap = overlapRatio(p, n, this.d.hitScale);
       n.minGap = Math.min(n.minGap ?? Infinity, gap);
-      if (p.invT <= 0 && p.shieldT <= 0 && gap < 1) {
+      if (gap < 1 && rushing && !n.scored) {
+        this.rushBump(n);
+      } else if (gap < 1 && !rushing && p.invT <= 0 && p.shieldT <= 0) {
         this.hit(n);
-        if (this.state !== 'play') return;
+        if (this.state !== "play") return;
       } else if (!n.scored && n.y > p.y + 6) {
         n.scored = true;
         this.addPoint(n);
@@ -206,61 +331,118 @@ export class PlayScene {
 
   addPoint(n) {
     const p = this.player;
-    const audio = this.game.audio;
     const pal = UMBRELLA_COLORS[p.color];
     this.score++;
     this.streak++;
     this.best = Math.max(this.best, this.score);
     this.bumpT = 0.15;
-    if (n.minGap < NEAR_MISS && p.invT <= 0) {
-      // Squeezed past: sparkle in the gap, and the field charges faster.
+    if (n.minGap < NEAR_MISS && p.invT <= 0 && this.rushT <= 0) {
+      // Squeezed past: sparkle in the gap, charge the field, count towards a rush.
       const mx = (n.x + p.x) / 2;
       const my = (n.y + p.y) / 2 - 10;
       this.world.burst(mx, my, 8, pal.accent, 50);
-      this.popup('CLOSE!', mx, my - 6, { color: pal.light });
+      this.popup("CLOSE!", mx, my - 6, { color: pal.light });
       this.field.bonus(CLOSE_BONUS);
-      audio.close();
+      this.sound("close");
+      if (++this.closeCount >= RUSH_EVERY) this.startRush();
     } else {
-      this.popup('+1', n.x, n.y - n.r);
-      audio.score(this.streak);
+      this.popup("+1", n.x, n.y - n.r);
+      this.sound("score", this.streak);
     }
     if (this.score % EXTRA_LIFE_EVERY === 0 && this.lives < MAX_LIVES) {
       this.lives++;
       this.maxLives = Math.max(this.maxLives, this.lives);
       this.lifeGainT = 0.8;
-      this.popup('+1 LIFE', p.x, p.y - 44, { scale: 2, color: pal.light, life: 1.4 });
-      audio.lifeUp();
+      this.popup("+1 LIFE", p.x, p.y - 44, {
+        scale: 2,
+        color: pal.light,
+        life: 1.4,
+      });
+      this.sound("lifeUp");
     } else if (this.score % MILESTONE === 0) {
-      audio.milestone();
+      this.sound("milestone");
     }
     if (this.score % MILESTONE === 0) {
       this.bumpT = 0.6;
-      this.popup(`${this.score}!`, p.x, p.y - 30, { scale: 2, color: pal.light, life: 1.1 });
+      this.popup(`${this.score}!`, p.x, p.y - 30, {
+        scale: 2,
+        color: pal.light,
+        life: 1.1,
+      });
       this.world.burst(p.x, p.y - 8, 18, pal.light, 90);
     }
-    const loc = LOCATION_ORDER[Math.floor(this.score / POINTS_PER_LOCATION) % LOCATION_ORDER.length];
+    const loc =
+      LOCATION_ORDER[
+        Math.floor(this.score / POINTS_PER_LOCATION) % LOCATION_ORDER.length
+      ];
     if (this.world.setLocation(loc)) {
       this.toasts.push({ text: LOCATIONS[loc].name, t: 0 });
-      audio.newPlace();
+      this.sound("newPlace");
     }
+  }
+
+  // SUN RUSH: the sun breaks through, everyone shuts their umbrella, and you
+  // run. Nothing can hurt you, and every umbrella you pass or bump scores.
+  startRush() {
+    const sky = this.world.sky;
+    this.closeCount = 0;
+    this.rushT = RUSH_TIME;
+    this.rushWeather = sky.weatherKey;
+    sky.hold = true;
+    if (sky.setWeather("sunny", 0.6)) this.quietWeather++;
+    this.player.rush = true;
+    this.toasts.unshift({ text: "SUN RUSH!", t: 0 });
+    this.world.burst(this.player.x, this.player.y - 10, 24, "#ffe9a0", 110);
+    this.sound("rushStart");
+  }
+
+  endRush() {
+    const sky = this.world.sky;
+    this.rushT = 0;
+    this.player.rush = false;
+    this.player.invT = Math.max(this.player.invT, 1); // a moment to find your feet
+    sky.hold = false;
+    sky.nextWeatherT = rand(20, 35);
+    if (sky.setWeather(this.rushWeather, 2)) this.quietWeather++;
+    this.sound("rushEnd");
+  }
+
+  rushBump(n) {
+    const p = this.player;
+    const dir = Math.sign(n.x - p.x) || 1;
+    n.touched = true;
+    n.scored = true;
+    n.knockV = dir * 180;
+    n.knockVY = -70;
+    n.wob = 1;
+    n.flashT = 0.1;
+    this.world.splash(n.x, n.y - 6, 6, PAL.splash, true, 60);
+    this.addPoint(n);
   }
 
   handleSky() {
     for (const e of this.world.sky.takeEvents()) {
-      if (e === 'weather') {
-        this.toasts.push({ text: WEATHER_NEWS[this.world.sky.weatherKey], t: 0 });
-      } else if (e === 'gust') {
+      if (e === "weather") {
+        if (this.quietWeather > 0) this.quietWeather--;
+        else
+          this.toasts.push({
+            text: WEATHER_NEWS[this.world.sky.weatherKey],
+            t: 0,
+          });
+      } else if (e === "gust") {
         // Someone's umbrella turns inside out.
-        const victims = this.npcs.filter((n) => !n.shooed && n.y > 10 && n.y < PF_H - 30);
+        const victims = this.npcs.filter(
+          (n) => !n.shooed && n.y > 10 && n.y < PF_H - 30,
+        );
         const n = victims[Math.floor(Math.random() * victims.length)];
         if (n) {
           n.flipT = 1.2;
           n.wob = 1;
         }
-        this.game.audio.gust();
-      } else if (e === 'thunder') {
+        this.sound("gust");
+      } else if (e === "thunder") {
         this.shakeFor(0.15);
-        this.game.audio.thunder(this.world.softFlash);
+        this.sound("thunder", this.world.softFlash);
       }
     }
   }
@@ -272,7 +454,8 @@ export class PlayScene {
     for (let i = 0; i < 8; i++) {
       const x = rand(GROUND_L + half, GROUND_R - half);
       let gap = Infinity;
-      for (const n of this.npcs) if (n.y < 40) gap = Math.min(gap, Math.abs(n.x - x));
+      for (const n of this.npcs)
+        if (n.y < 40) gap = Math.min(gap, Math.abs(n.x - x));
       if (gap > bestGap) [bestGap, bestX] = [gap, x];
     }
     return bestX;
@@ -280,18 +463,19 @@ export class PlayScene {
 
   spawn() {
     const kind = pick(spawnWeights(this.score, this.d));
-    if (kind === 'pair') {
+    if (kind === "pair") {
       // Two commuters walking side by side, in step.
       const x = this.freeLane(32);
-      const a = new Npc('commuter', x - 15, -20, this.d);
-      const b = new Npc('commuter', x + 15, -21, this.d);
+      const a = new Npc("commuter", x - 15, -20, this.d);
+      const b = new Npc("commuter", x + 15, -21, this.d);
       b.syncWith(a);
       this.npcs.push(a, b);
-      return;
+    } else {
+      this.npcs.push(new Npc(kind, this.freeLane(16), -20, this.d));
     }
-    this.npcs.push(new Npc(kind, this.freeLane(16), -20, this.d));
     // Arrive with the umbrella already up or down for the weather.
-    for (const n of this.npcs.slice(-2)) if (n.y < 0) n.open = Math.max(0.15, this.world.sky.p.open);
+    for (const n of this.npcs.slice(-2))
+      if (n.y < 0) n.open = Math.max(0.15, this.world.sky.p.open);
   }
 
   // Burst: the field's front sweeps outward over the next few frames (applyField).
@@ -304,7 +488,7 @@ export class PlayScene {
     this.world.animals.startle(p.x, p.y, FIELD_RADIUS * 1.2);
     this.freeze = 0.05;
     this.shakeFor(0.18);
-    this.game.audio.fieldFire();
+    this.sound("fieldFire");
   }
 
   // Every umbrella the expanding front reaches is shoved away and closes up
@@ -323,7 +507,7 @@ export class PlayScene {
         const d = Math.hypot(dx, dy) || 1;
         if (d > rf + n.r * 0.6) continue;
         n.shoo(dx / d, dy / d);
-        this.game.audio.shut();
+        this.sound("shut");
         this.world.splash(n.x, n.y - n.r * 0.6, 6, PAL.splash, true, 50);
       }
       this.world.pushWater(w.x, w.y, rf);
@@ -344,7 +528,7 @@ export class PlayScene {
     p.flashT = 0.12;
     this.lives--;
     this.streak = 0;
-    this.game.audio.hit();
+    this.sound("hit");
     this.lifeLostT = 0.6;
     this.freeze = 0.08;
     this.hitFlash = 0.15;
@@ -352,7 +536,7 @@ export class PlayScene {
     this.world.addRipple(p.x, p.y + 10, 18, 3, 1.1);
     this.world.splash(p.x, p.y - 6, 12, PAL.splash, true, 70);
     if (this.lives <= 0) {
-      this.state = 'dying';
+      this.state = "dying";
       p.die();
     }
   }
@@ -376,12 +560,16 @@ export class PlayScene {
             // "!" over walkers about to make a move.
             for (const n of this.npcs) {
               if (n.alert && Math.floor(this.t * 10) % 2 === 0) {
-                drawText(ctx, '!', n.x, n.y - n.r * 1.4 - 8, '#ffffff', { align: 'center', shadow: PAL.textShadow });
+                drawText(ctx, "!", n.x, n.y - n.r * 1.4 - 8, "#ffffff", {
+                  align: "center",
+                  shadow: PAL.textShadow,
+                });
               }
             }
             this.drawPopups(ctx);
             this.drawWindWarning(ctx);
             this.drawToast(ctx);
+            if (this.demo) this.drawDemo(ctx);
           },
         }),
       this.shake,
@@ -395,7 +583,28 @@ export class PlayScene {
     }
 
     if (this.paused) inPlayfield(ctx, L, () => this.drawPaused(ctx));
-    if (this.state === 'over') inPlayfield(ctx, L, () => this.drawGameOver(ctx));
+    if (this.state === "initials") {
+      inPlayfield(ctx, L, () => {
+        ctx.fillStyle = PAL.overlay;
+        ctx.fillRect(0, 0, PF_W, PF_H);
+        this.entry.draw(ctx, this.rank, this.score);
+      });
+    }
+    if (this.state === "over" && !this.demo)
+      inPlayfield(ctx, L, () => this.drawGameOver(ctx));
+  }
+
+  drawDemo(ctx) {
+    if (Math.floor(this.t * 2) % 2) return;
+    drawText(ctx, "DEMO PLAY", 90, 70, "#ffffff", {
+      scale: 2,
+      shadow: PAL.textShadow,
+      align: "center",
+    });
+    drawText(ctx, "PRESS SPACE OR TAP", 90, 88, PAL.text, {
+      shadow: PAL.textShadow,
+      align: "center",
+    });
   }
 
   drawPopups(ctx) {
@@ -404,18 +613,33 @@ export class PlayScene {
       // Pop up fast, then drift; blink out at the end.
       const rise = (1 - (1 - Math.min(1, k * 2.5)) ** 2) * 14 + k * 6;
       if (k > 0.75 && Math.floor(p.t * 20) % 2) continue;
-      drawText(ctx, p.text, p.x, p.y - rise, p.color, { align: 'center', shadow: PAL.textShadow, scale: p.scale });
+      drawText(ctx, p.text, p.x, p.y - rise, p.color, {
+        align: "center",
+        shadow: PAL.textShadow,
+        scale: p.scale,
+      });
     }
   }
 
-  // Banners (new place, weather news) slide in from the top, one at a time.
+  // Banners (new place, weather news, SUN RUSH) slide in from the top, one at a time.
   drawToast(ctx) {
     const toast = this.toasts[0];
     if (!toast) return;
     const t = toast.t;
     const out = TOAST_TIME - 0.3;
-    const y = Math.round(t < 0.3 ? -10 + (t / 0.3) * 30 : t > out ? 20 - ((t - out) / 0.3) * 30 : 20);
-    drawText(ctx, `- ${toast.text} -`, PF_W / 2, y, PAL.text, { scale: 2, shadow: PAL.textShadow, align: 'center' });
+    const y = Math.round(
+      t < 0.3
+        ? -10 + (t / 0.3) * 30
+        : t > out
+          ? 20 - ((t - out) / 0.3) * 30
+          : 20,
+    );
+    const color = toast.text === "SUN RUSH!" ? "#ffe9a0" : PAL.text;
+    drawText(ctx, `- ${toast.text} -`, PF_W / 2, y, color, {
+      scale: 2,
+      shadow: PAL.textShadow,
+      align: "center",
+    });
   }
 
   // A gust is announced a second ahead with blinking arrows on its side.
@@ -423,17 +647,30 @@ export class PlayScene {
     const sky = this.world.sky;
     const dir = sky.warn || (sky.gusting > 0 ? sky.gustDir : 0);
     if (!dir || Math.floor(this.t * 8) % 2) return;
-    const text = dir > 0 ? 'WIND >>>' : '<<< WIND';
-    drawText(ctx, text, dir > 0 ? PF_W - 18 : 18, 44, '#ffffff', { align: dir > 0 ? 'right' : 'left', shadow: PAL.textShadow, scale: sky.warn ? 2 : 1 });
+    const text = dir > 0 ? "WIND >>>" : "<<< WIND";
+    drawText(ctx, text, dir > 0 ? PF_W - 18 : 18, 44, "#ffffff", {
+      align: dir > 0 ? "right" : "left",
+      shadow: PAL.textShadow,
+      scale: sky.warn ? 2 : 1,
+    });
   }
 
   drawPaused(ctx) {
     ctx.fillStyle = PAL.overlay;
     ctx.fillRect(0, 0, PF_W, PF_H);
-    drawText(ctx, 'PAUSED', 90, 66, PAL.text, { scale: 2, shadow: PAL.textShadow, align: 'center' });
+    drawText(ctx, "PAUSED", 90, 66, PAL.text, {
+      scale: 2,
+      shadow: PAL.textShadow,
+      align: "center",
+    });
     plate(ctx, 14, 92, 152, PAUSE_ITEMS.length * 20 + 8);
-    PAUSE_ITEMS.forEach((label, i) => menuItem(ctx, label, 90, 102 + i * 20, i === this.pauseSel, this.t));
-    drawText(ctx, 'ESC TO RESUME', 90, 172, PAL.textDim, { align: 'center', shadow: PAL.textShadow });
+    PAUSE_ITEMS.forEach((label, i) =>
+      menuItem(ctx, label, 90, 102 + i * 20, i === this.pauseSel, this.t),
+    );
+    drawText(ctx, "ESC TO RESUME", 90, 172, PAL.textDim, {
+      align: "center",
+      shadow: PAL.textShadow,
+    });
   }
 
   drawGameOver(ctx) {
@@ -442,17 +679,40 @@ export class PlayScene {
     ctx.fillRect(0, 0, PF_W, PF_H);
     const c = PF_W / 2;
     const blink = Math.floor(this.overT * 2.5) % 2 === 0;
-    drawText(ctx, 'GAME OVER', c, 70, PAL.text, { scale: 2, shadow: PAL.textShadow, align: 'center' });
-    drawText(ctx, 'SCORE', c, 98, PAL.textDim, { align: 'center' });
-    drawText(ctx, this.score, c, 108, PAL.text, { scale: 3, shadow: PAL.textShadow, align: 'center' });
+    drawText(ctx, "GAME OVER", c, 70, PAL.text, {
+      scale: 2,
+      shadow: PAL.textShadow,
+      align: "center",
+    });
+    drawText(ctx, "SCORE", c, 98, PAL.textDim, { align: "center" });
+    drawText(ctx, this.score, c, 108, PAL.text, {
+      scale: 3,
+      shadow: PAL.textShadow,
+      align: "center",
+    });
     if (this.newBest) {
-      if (blink) drawText(ctx, '* NEW BEST *', c, 132, PAL.rippleHi, { align: 'center', shadow: PAL.textShadow });
+      if (blink)
+        drawText(ctx, "* NEW BEST *", c, 132, PAL.rippleHi, {
+          align: "center",
+          shadow: PAL.textShadow,
+        });
+    } else if (this.rank) {
+      drawText(ctx, `RANK ${this.rank}`, c, 132, PAL.text, {
+        align: "center",
+        shadow: PAL.textShadow,
+      });
     } else {
-      drawText(ctx, `BEST ${this.prevBest}`, c, 132, PAL.textDim, { align: 'center' });
+      drawText(ctx, `BEST ${this.prevBest}`, c, 132, PAL.textDim, {
+        align: "center",
+      });
     }
     if (this.overT > 0.6) {
-      if (blink) drawText(ctx, 'SPACE OR TAP TO RETRY', c, 172, PAL.text, { align: 'center', shadow: PAL.textShadow });
-      drawText(ctx, 'ESC FOR MENU', c, 184, PAL.textDim, { align: 'center' });
+      if (blink)
+        drawText(ctx, "SPACE OR TAP TO RETRY", c, 172, PAL.text, {
+          align: "center",
+          shadow: PAL.textShadow,
+        });
+      drawText(ctx, "ESC FOR MENU", c, 184, PAL.textDim, { align: "center" });
     }
     ctx.globalAlpha = 1;
   }

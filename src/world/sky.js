@@ -20,16 +20,19 @@ const AFTERNOON = 0.3;
 
 // rain: drop rate multiplier, wind: gust strength, fog: haze density,
 // clouds: extra gloom, lightning: strikes on/off, open: whether passers-by
-// keep umbrellas up, wet: puddle size, slick: puddles make you slide.
+// keep umbrellas up, wet: puddle size, sun: warm sunlight.
+// Sunny is not part of the normal cycle: it only comes out for a SUN RUSH.
 export const WEATHER = {
-  rainy: { name: 'RAINY', rain: 1, wind: 0, fog: 0, clouds: 0.15, lightning: 0, open: 1, wet: 1, slick: 0 },
-  sunny: { name: 'SUNNY', rain: 0, wind: 0, fog: 0, clouds: 0, lightning: 0, open: 0, wet: 0.45, slick: 1 },
-  hazy: { name: 'HAZY', rain: 0.35, wind: 0, fog: 1, clouds: 0.25, lightning: 0, open: 1, wet: 0.85, slick: 0 },
-  stormy: { name: 'STORMY', rain: 2.2, wind: 1, fog: 0, clouds: 0.55, lightning: 1, open: 1, wet: 1.15, slick: 0 },
+  rainy: { name: 'RAINY', rain: 1, wind: 0, fog: 0, clouds: 0.15, lightning: 0, open: 1, wet: 1, sun: 0 },
+  drizzle: { name: 'DRIZZLE', rain: 0.4, wind: 0, fog: 0, clouds: 0.08, lightning: 0, open: 1, wet: 0.8, sun: 0 },
+  hazy: { name: 'HAZY', rain: 0.35, wind: 0, fog: 1, clouds: 0.25, lightning: 0, open: 1, wet: 0.85, sun: 0 },
+  stormy: { name: 'STORMY', rain: 2.2, wind: 1, fog: 0, clouds: 0.55, lightning: 1, open: 1, wet: 1.15, sun: 0 },
+  sunny: { name: 'SUNNY', rain: 0, wind: 0, fog: 0, clouds: 0, lightning: 0, open: 0, wet: 0.45, sun: 1 },
 };
-const PARAMS = ['rain', 'wind', 'fog', 'clouds', 'lightning', 'open', 'wet', 'slick'];
+const PARAMS = ['rain', 'wind', 'fog', 'clouds', 'lightning', 'open', 'wet', 'sun'];
 const TRANSITION = 6; // seconds to blend between weathers
-const WEIGHTS = { rainy: 4, sunny: 2, hazy: 2, stormy: 2 };
+const WEIGHTS = { rainy: 3, drizzle: 2, hazy: 2, stormy: 3 };
+const CHANGE_EVERY = [30, 45]; // seconds between weather changes
 
 const GUST_WARN = 1; // seconds of warning before a gust
 const GUST_LEN = 2;
@@ -49,8 +52,10 @@ export class Sky {
     this.from = { ...WEATHER[weather] };
     this.to = WEATHER[weather];
     this.blend = 1;
+    this.blendTime = TRANSITION;
     this.p = { ...WEATHER[weather] };
-    this.nextWeatherT = rand(45, 60);
+    this.nextWeatherT = rand(...CHANGE_EVERY);
+    this.hold = false; // pauses automatic changes (during a SUN RUSH)
     this.wind = 0;
     this.gustT = rand(3, 6);
     this.gustDir = 0;
@@ -71,27 +76,30 @@ export class Sky {
     if (!on) this.time = AFTERNOON;
   }
 
-  setWeather(key) {
-    if (key === this.weatherKey) return;
+  // Blend to a weather over `seconds`. Returns whether anything changed.
+  setWeather(key, seconds = TRANSITION) {
+    if (key === this.weatherKey) return false;
     this.from = { ...this.p };
     this.to = WEATHER[key];
     this.weatherKey = key;
     this.blend = 0;
+    this.blendTime = seconds;
     this.events.push('weather');
+    return true;
   }
 
   update(dt) {
     this.age += dt;
     if (this.dayNight) this.time = (this.time + dt / this.cycle) % 1;
 
-    if (this.autoWeather && (this.nextWeatherT -= dt) <= 0) {
-      this.nextWeatherT = rand(45, 60);
+    if (this.autoWeather && !this.hold && (this.nextWeatherT -= dt) <= 0) {
+      this.nextWeatherT = rand(...CHANGE_EVERY);
       const w = { ...WEIGHTS, [this.weatherKey]: 0 };
       if (this.age < this.stormAfter) w.stormy = 0;
       this.setWeather(pick(w));
     }
     if (this.blend < 1) {
-      this.blend = Math.min(1, this.blend + dt / TRANSITION);
+      this.blend = Math.min(1, this.blend + dt / this.blendTime);
       const e = this.blend * this.blend * (3 - 2 * this.blend);
       for (const k of PARAMS) this.p[k] = lerp(this.from[k], this.to[k], e);
     }
@@ -166,7 +174,7 @@ export class Sky {
       ctx.fillStyle = `rgb(${r},${g},${b})`;
       ctx.fillRect(0, 0, PF_W, PF_H);
     }
-    const sun = this.p.slick * (1 - this.night);
+    const sun = this.p.sun * (1 - this.night);
     if (sun > 0.01) {
       ctx.globalCompositeOperation = 'lighter';
       ctx.fillStyle = `rgba(255, 220, 150, ${0.08 * sun})`;

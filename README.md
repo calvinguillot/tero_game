@@ -6,13 +6,15 @@ It runs in the browser using plain JavaScript and the Canvas 2D API. All of the 
 
 ## Features
 
-- **Arcade mode**: three lives, a crowd that speeds up as you score, an extra life every 100 points (four at most), and local high scores for each difficulty.
+- **Arcade mode**: three lives, a crowd that speeds up as you score, an extra life every 100 points (four at most), and an arcade-style high-score table for each difficulty where you sign your three initials.
 - **Force field**: a shockwave that pushes nearby umbrellas away and snaps them shut, and sweeps the water aside. It recharges over time, and near misses (**CLOSE!**) give it a boost.
+- **SUN RUSH**: every 20 CLOSE! near misses, the sun breaks through for five seconds. Everyone shuts their umbrella, you run and can't be hurt, and every umbrella you pass or bump scores.
+- **Attract mode**: leave the title screen alone and the game plays a demo of itself.
 - **Walker types**: commuters, wanderers, elders, hurriers, kids and pairs, each with its own readable behavior. Some telegraph their moves with a `!` first.
 - **Places**: Old Town, Rainy Park, Market St and Harbor, each with its own walls, ground, props and animals. A new place arrives every 25 points.
 - **Day and night**: a four-minute day, with street lamps and fireflies after dark.
-- **Weather**: rainy, sunny, hazy and stormy, each changing how you play (closed umbrellas and slippery puddles, fog, wind gusts and lightning).
-- **Synthesized sound**: effects, rain and wind that follow the weather, crickets and birds, and a soft tune that changes key at night.
+- **Weather**: rainy, drizzle, hazy and stormy, changing every 30–45 seconds and each changing how you play (fog hides the crowd; storms bring gusts and lightning).
+- **Synthesized sound**: effects; rain built from individual drops (a few for a drizzle, a downpour in a storm), wind and thunder; crickets and birds; and a soft tune that changes key at night. Sound effects, music and rain each have their own on/off switch.
 - **Desktop and mobile**: keyboard, gamepad-style on-screen controls on touch screens, and layouts for landscape and portrait.
 - **Six umbrella styles and seven colors**: other walkers wear the same styles in muted tones.
 
@@ -78,7 +80,7 @@ refs/                 Original concept screenshots
 
 `main.js` runs a fixed-timestep loop. Each animation frame adds the elapsed time to an accumulator, which is drained in steps of 1/60 s by calling `scene.update(1/60)`. The scene is then drawn once. Because the simulation step is fixed, speeds stay the same on 60 Hz and 144 Hz screens, and the game won't spiral if the tab stutters (frame time is capped at 0.1 s).
 
-A **scene** is any object with `update(dt)` and `draw(ctx, layout)`; the game has one each for splash, menu, settings, guide, scores, credits and play. `game.go(scene)` switches scenes behind a curtain of falling rain: columns of background color drop down, the scene swaps while the screen is covered, and the columns lift away.
+A **scene** is any object with `update(dt)` and `draw(ctx, layout)`; the game has one each for splash, menu, settings, guide, scores, credits and play. After 12 idle seconds on the splash screen, the play scene starts in **demo mode**: an `Autopilot` (`game/autopilot.js`) stands in for the input. Ten times a second it picks the spot with the most room among the walkers coming down, and it fires the force field when something is about to hit. The demo plays silently, never touches the high scores, and returns to the title after 30 seconds or on any key. `game.go(scene)` switches scenes behind a curtain of falling rain: columns of background color drop down, the scene swaps while the screen is covered, and the columns lift away.
 
 **Input** keeps two sets: `down` (keys held right now) and `hits` (one-shot presses that a scene consumes with `input.hit('confirm')`). Presses are only cleared after a simulation step has run, so a quick tap is never lost between frames. Pointer events go through `zoneAt()`, which says whether a touch landed on the stick, the force field button or the pause key. Dragging on the stick gives an analog direction; any other tap counts as "confirm" and is also kept as a position, so menus can tell which option was tapped.
 
@@ -145,10 +147,11 @@ The HUD panels are drawn outside the playfield in the same frame.
 `world/sky.js` keeps two independent clocks:
 
 - **Time of day** moves through keyframed light colors: sunrise, morning, afternoon, sunset, dusk, night. The current color is blended between keyframes and drawn over the scene with the `multiply` blend mode. Clouds dim it further, and a sunny day adds a little warmth with the `lighter` blend mode.
-- **Weather** is a set of numbers: rain amount, wind, fog, clouds, lightning, umbrellas open, puddle size, slipperiness. A change blends every number to the new weather over six seconds, so nothing switches abruptly.
+- **Weather** is a set of numbers: rain amount, wind, fog, clouds, lightning, umbrellas open, puddle size, sunlight. A change blends every number to the new weather, normally over six seconds, so nothing switches abruptly. The normal cycle picks rainy, drizzle, hazy or stormy every 30–45 seconds, never repeating the same state twice in a row and keeping storms away early in a run.
   - **Storms** schedule gusts with a one-second warning, and lightning strikes that flash twice.
   - **Haze** is an ordered-dither (Bayer 4×4) fog layer, densest at the top of the street, drifting sideways.
-  - **Gameplay reads the same numbers**: walkers raise or lower umbrellas to match, puddles grow and shrink, the sun makes puddles slippery, and wind pushes everyone.
+  - **Sunny** is only used for a SUN RUSH. The play scene pauses the automatic cycle, blends to sunny in 0.6 s, and blends back to the previous weather afterwards.
+  - **Gameplay reads the same numbers**: walkers raise or lower umbrellas to match, puddles grow and shrink, and wind pushes everyone.
 
 ### Gameplay systems
 
@@ -162,12 +165,15 @@ The HUD panels are drawn outside the playfield in the same frame.
 `audio/audio.js` builds a Web Audio graph on the first user gesture: sound effects, ambience and music each feed their own volume control, which go into a master volume and a gentle compressor.
 
 - **Effects** are short oscillator notes with pitch slides and quick volume envelopes, or bursts of filtered noise. That covers everything from the score blip (which rises with each point in a row) to the force field's whoosh and the thunder.
-- **Ambience** is looped noise through filters: a rain hiss, a heavy-rain roar and a wandering wind band. Their volumes follow the weather every frame, plus occasional crickets at night and birds by day.
-- **Music** is scheduled slightly ahead of time on the audio clock: a soft bass and a randomly wandering pentatonic melody, in a major key by day and a minor key at night, sparser during storms.
+- **Rain** is mostly separate drops rather than a constant hiss. Each frame, a number of drops proportional to the rain amount is scheduled: high ticks on the pavement, soft pats on umbrellas, and the odd bright "plip" into a puddle. A drizzle is a few drops you can count, while a storm is a dense patter. Under steady rain, a soft low wash of brown noise (much gentler than white noise) fades in, plus a deeper roar in storms.
+- **Wind** is a wandering band of the same soft noise, swelling with gusts.
+- **Day and night**: occasional crickets at night and birds by day.
+- **Music** is scheduled slightly ahead of time on the audio clock: a soft bass and a randomly wandering pentatonic melody, in a major key by day and a minor key at night, sparser during storms and bright and double-time during a SUN RUSH.
+- **Switches**: SOUND, MUSIC and RAIN each control one of the three channels.
 
 ### Saving
 
-Settings and high scores are saved as one JSON object in `localStorage` under `rainyday.v1`. Every read and write is guarded, so the game still runs if storage is unavailable, and new settings are merged over the defaults when an older save is loaded.
+Settings, your last initials and high scores (score, initials and date) are saved as one JSON object in `localStorage` under `rainyday.v1`. Every read and write is guarded, so the game still runs if storage is unavailable, and new settings are merged over the defaults when an older save is loaded.
 
 ## Tweaking
 
@@ -179,7 +185,7 @@ Settings and high scores are saved as one JSON object in `localStorage` under `r
 | Weather and the day's light | `WEATHER` and `DAY` in `src/world/sky.js` |
 | Umbrella colors and styles | `src/render/palette.js` and `STYLES` in `src/render/umbrella.js` |
 | Force field radius and timing | `src/game/forcefield.js` |
-| Scoring, lives, near misses | Constants at the top of `src/scenes/play.js` |
+| Scoring, lives, near misses, SUN RUSH | Constants at the top of `src/scenes/play.js` |
 
 ## Credits
 

@@ -1,5 +1,5 @@
 import { clamp, rand } from '../core/math.js';
-import { PAL } from '../render/palette.js';
+import { PAL, UMBRELLA_COLORS } from '../render/palette.js';
 import { GROUND_L, GROUND_R, PF_H } from '../config.js';
 
 const MAX_SPEED = 90;
@@ -26,6 +26,7 @@ export class Player {
     this.color = color;
     this.style = style;
     this.shieldT = 0; // brief collision immunity while the force field fires
+    this.rush = false; // SUN RUSH: running, untouchable
     this.handle = 'j';
     this.open = 1;
     this.inv = false;
@@ -67,16 +68,15 @@ export class Player {
       this.hitT -= dt;
       k *= 0.35;
     }
-    // In the sun, wet puddles are slick: you keep sliding.
-    this.slipping = world.sky.p.slick > 0.5 && world.inPuddle(this.x, this.y + 13);
-    if (this.slipping) k *= 0.12;
-    this.vx += (a.x * MAX_SPEED - this.vx) * k;
-    this.vy += (a.y * MAX_SPEED - this.vy) * k;
+    // During a SUN RUSH you run: faster, with a trail of sparkles.
+    const max = MAX_SPEED * (this.rush ? 1.35 : 1);
+    this.vx += (a.x * max - this.vx) * k;
+    this.vy += (a.y * max - this.vy) * k;
     // Wind pushes the umbrella like a sail.
     this.x += (this.vx + world.sky.wind * 0.5) * dt;
     this.y += this.vy * dt;
-    if (this.slipping && Math.hypot(this.vx, this.vy) > 20 && Math.random() < 0.3) {
-      world.splash(this.x, this.y + 13, 1, PAL.rainTip, false, 30);
+    if (this.rush && Math.random() < 0.6) {
+      world.burst(this.x + rand(-6, 6), this.y + 12, 1, UMBRELLA_COLORS[this.color].light, 25);
     }
 
     const lo = GROUND_L + this.r * 0.8;
@@ -97,7 +97,7 @@ export class Player {
 
     this.splashed = false;
     const moving = Math.hypot(this.vx, this.vy) > 15;
-    this.bobY = moving ? (Math.floor(this.t * 8) % 2 ? -1 : 0) : Math.round(Math.sin(this.t * 2.5) * 0.7);
+    this.bobY = moving ? (Math.floor(this.t * (this.rush ? 14 : 8)) % 2 ? -1 : 0) : Math.round(Math.sin(this.t * 2.5) * 0.7);
     if (moving) {
       this.idleT = 0;
       this.stepT -= dt;
