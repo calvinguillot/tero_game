@@ -48,6 +48,7 @@ export class Npc {
     this.touched = false;
     this.scored = false;
     this.shooed = false; // hit by the force field: closes up, harmless, worth nothing
+    this.flipT = 0;
     this.stepT = rand(0, 0.3);
     this.stepSide = 1;
     this.age = 0;
@@ -90,9 +91,15 @@ export class Npc {
     this.y += (world.speed + this.walk) * dt;
     const T = NPC_TYPES[this.type];
 
-    if (this.shooed) {
-      this.open = Math.max(0.15, this.open - dt * 3);
-    } else if (this.y > 0) {
+    // Umbrellas go up and down with the weather; the force field shuts them for good.
+    const wantOpen = this.shooed ? 0.15 : Math.max(0.15, world.sky.p.open);
+    this.open += clamp(wantOpen - this.open, -dt * 3, dt * 1.5);
+    if (!this.shooed) this.baseX += world.sky.wind * 0.3 * dt;
+    // A gust can turn an umbrella inside out for a moment.
+    if (this.flipT > 0) this.flipT -= dt;
+    this.inv = this.flipT > 0;
+
+    if (!this.shooed && this.y > 0) {
       // Hurrier: once, lean into a lane change.
       if (this.y > this.laneAt) {
         this.laneAt = Infinity;
@@ -143,7 +150,7 @@ export class Npc {
     this.lean += (leanTo - this.lean) * Math.min(1, dt * 8);
     this.wob = Math.max(0, this.wob - dt * 2);
     this.flashT = Math.max(0, (this.flashT || 0) - dt);
-    this.tilt = this.lean + Math.sin(this.age * 30) * 3 * this.wob;
+    this.tilt = this.lean + world.sky.wind / 30 + Math.sin(this.age * 30) * 3 * this.wob;
     if (this.moveT > 0 && T.dart) this.bobY = Math.floor(this.age * 12) % 2 ? -2 : 0;
     else this.bobY = Math.round(Math.sin(this.age * 5 + this.phase) * 0.6);
 

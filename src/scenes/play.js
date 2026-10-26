@@ -1,4 +1,5 @@
 import { World } from '../world/world.js';
+import { Sky } from '../world/sky.js';
 import { LOCATIONS, LOCATION_ORDER } from '../world/locations.js';
 import { Player } from '../game/player.js';
 import { Npc, separate } from '../game/npc.js';
@@ -21,23 +22,29 @@ const FIELD_BONUS = 0.5; // seconds of recharge per point scored
 const MILESTONE = 10; // celebrate every N points
 const NEAR_MISS = 2.0; // squared hitbox distance below which a pass sparkles
 const PAUSE_ITEMS = ['RESUME', 'RESTART', 'MAIN MENU'];
+const DAY_LENGTH = 240; // seconds for a full day in arcade
+const TOAST_TIME = 2.6;
+const WEATHER_NEWS = { rainy: 'RAIN AGAIN', sunny: 'SUN IS OUT', hazy: 'HAZE ROLLS IN', stormy: 'STORM!' };
 
 // Arcade mode: dodge the crowd, +1 for every umbrella that gets past you.
 export class PlayScene {
   constructor(game) {
     this.game = game;
-    const { difficulty, color, style, fx } = game.data.settings;
+    const { difficulty, color, style, fx, flash, dayNight } = game.data.settings;
     this.diffKey = difficulty;
     this.d = DIFFICULTY[difficulty];
     this.color = color;
     this.style = style;
-    this.world = new World({ speed: this.d.speedStart, location: LOCATION_ORDER[0], lowFx: !fx });
+    // Every run starts on a rainy morning; the day and the weather move on from there.
+    const sky = new Sky({ time: 0.12, cycle: DAY_LENGTH, dayNight, autoWeather: true, stormAfter: this.d.stormAfter });
+    this.world = new World({ speed: this.d.speedStart, location: LOCATION_ORDER[0], lowFx: !fx, sky });
+    this.world.softFlash = !flash;
     this.player = new Player(color, style);
     this.world.player = this.player;
     this.field = new ForceField(this.d.recharge);
     this.npcs = [];
     this.popups = [];
-    this.toast = null;
+    this.toasts = []; // banners shown one after another: { text, t }
     this.t = 0;
     this.score = 0;
     this.lives = START_LIVES;
@@ -72,6 +79,12 @@ export class PlayScene {
   }
   get level() {
     return this.d.name;
+  }
+  get timeName() {
+    return this.world.sky.timeName;
+  }
+  get weatherName() {
+    return this.world.sky.weather.name;
   }
 
   pause() {
@@ -119,10 +132,7 @@ export class PlayScene {
     this.lifeLostT = Math.max(0, this.lifeLostT - dt);
     this.shake = Math.max(0, this.shake - dt);
     this.hitFlash = Math.max(0, this.hitFlash - dt);
-    if (this.toast) {
-      this.toast.t += dt;
-      if (this.toast.t > 2.6) this.toast = null;
-    }
+    if (this.toasts.length && (this.toasts[0].t += dt) > TOAST_TIME) this.toasts.shift();
     // Hit-stop: freeze the action for a few frames on impact.
     if (this.freeze > 0) {
       this.freeze -= dt;
@@ -135,6 +145,7 @@ export class PlayScene {
     this.world.speed = this.state === 'play' ? lerp(this.d.speedStart, this.d.speedMax, I) : lerp(this.world.speed, 12, dt * 2);
     this.world.umbrellas = this.npcs.concat(this.player);
     this.world.update(dt);
+    this.handleSky();
     this.field.update(dt, this.world.speed * dt);
     this.player.update(dt, this.state === 'play' ? input : null, this.world);
 
@@ -204,7 +215,25 @@ export class PlayScene {
       this.world.burst(p.x, p.y - 8, 18, UMBRELLA_COLORS[p.color].light, 90);
     }
     const loc = LOCATION_ORDER[Math.floor(this.score / POINTS_PER_LOCATION) % LOCATION_ORDER.length];
-    if (this.world.setLocation(loc)) this.toast = { text: LOCATIONS[loc].name, t: 0 };
+    if (this.world.setLocation(loc)) this.toasts.push({ text: LOCATIONS[loc].name, t: 0 });
+  }
+
+  handleSky() {
+    for (const e of this.world.sky.takeEvents()) {
+      if (e === 'weather') {
+        this.toasts.push({ text: WEATHER_NEWS[this.world.sky.weatherKey], t: 0 });
+      } else if (e === 'gust') {
+        // Someone's umbrella turns inside out.
+        const victims = this.npcs.filter((n) => !n.shooed && n.y > 10 && n.y < PF_H - 30);
+        const n = victims[Math.floor(Math.random() * victims.length)];
+        if (n) {
+          n.flipT = 1.2;
+          n.wob = 1;
+        }
+      } else if (e === 'thunder') {
+        this.shakeFor(0.15);
+      }
+    }
   }
 
   // The lane (x) farthest from walkers near the top, for a walker of half-width `half`.
@@ -232,6 +261,8 @@ export class PlayScene {
       return;
     }
     this.npcs.push(new Npc(kind, this.freeLane(16), -20, this.d));
+    // Arrive with the umbrella already up or down for the weather.
+    for (const n of this.npcs.slice(-2)) if (n.y < 0) n.open = Math.max(0.15, this.world.sky.p.open);
   }
 
   // Burst: the field's front sweeps outward over the next few frames (applyField).
@@ -304,16 +335,21 @@ export class PlayScene {
       ctx,
       L,
       () =>
-        drawStreet(ctx, this.world, umbrellas, p.visible ? null : p, () => {
-          this.field.draw(ctx, p);
-          // "!" over walkers about to make a move.
-          for (const n of this.npcs) {
-            if (n.alert && Math.floor(this.t * 10) % 2 === 0) {
-              drawText(ctx, '!', n.x, n.y - n.r * 1.4 - 8, '#ffffff', { align: 'center', shadow: PAL.textShadow });
+        drawStreet(ctx, this.world, umbrellas, {
+          hidden: p.visible ? null : p,
+          glow: p,
+          overlay: () => {
+            this.field.draw(ctx, p);
+            // "!" over walkers about to make a move.
+            for (const n of this.npcs) {
+              if (n.alert && Math.floor(this.t * 10) % 2 === 0) {
+                drawText(ctx, '!', n.x, n.y - n.r * 1.4 - 8, '#ffffff', { align: 'center', shadow: PAL.textShadow });
+              }
             }
-          }
-          this.drawPopups(ctx);
-          this.drawToast(ctx);
+            this.drawPopups(ctx);
+            this.drawWindWarning(ctx);
+            this.drawToast(ctx);
+          },
         }),
       this.shake,
     );
@@ -339,12 +375,23 @@ export class PlayScene {
     }
   }
 
-  // Location name slides in from the top when a new area begins.
+  // Banners (new place, weather news) slide in from the top, one at a time.
   drawToast(ctx) {
-    if (!this.toast) return;
-    const t = this.toast.t;
-    const y = Math.round(t < 0.3 ? -10 + (t / 0.3) * 30 : t > 2.3 ? 20 - ((t - 2.3) / 0.3) * 30 : 20);
-    drawText(ctx, `- ${this.toast.text} -`, PF_W / 2, y, PAL.text, { scale: 2, shadow: PAL.textShadow, align: 'center' });
+    const toast = this.toasts[0];
+    if (!toast) return;
+    const t = toast.t;
+    const out = TOAST_TIME - 0.3;
+    const y = Math.round(t < 0.3 ? -10 + (t / 0.3) * 30 : t > out ? 20 - ((t - out) / 0.3) * 30 : 20);
+    drawText(ctx, `- ${toast.text} -`, PF_W / 2, y, PAL.text, { scale: 2, shadow: PAL.textShadow, align: 'center' });
+  }
+
+  // A gust is announced a second ahead with blinking arrows on its side.
+  drawWindWarning(ctx) {
+    const sky = this.world.sky;
+    const dir = sky.warn || (sky.gusting > 0 ? sky.gustDir : 0);
+    if (!dir || Math.floor(this.t * 8) % 2) return;
+    const text = dir > 0 ? 'WIND >>>' : '<<< WIND';
+    drawText(ctx, text, dir > 0 ? PF_W - 18 : 18, 44, '#ffffff', { align: dir > 0 ? 'right' : 'left', shadow: PAL.textShadow, scale: sky.warn ? 2 : 1 });
   }
 
   drawPaused(ctx) {

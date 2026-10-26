@@ -19,12 +19,14 @@ const ROWS = [
   { key: 'color', label: 'COLOR', list: PLAYER_COLORS, show: (v) => v, help: () => ['YOUR UMBRELLA COLOR.', 'THE STICK AND BUTTON MATCH.'] },
   { key: 'style', label: 'STYLE', list: STYLE_KEYS, show: (v) => STYLES[v].name, help: () => ['SHAPE AND PATTERN OF', 'YOUR UMBRELLA.'] },
   { key: 'difficulty', label: 'LEVEL', list: DIFFICULTY_KEYS, show: (v) => DIFFICULTY[v].name, help: (v) => LEVEL_HELP[v] },
+  { key: 'dayNight', label: 'DAY/NIGHT', list: [true, false], show: (v) => (v ? 'ON' : 'OFF'), help: () => ['THE DAY PASSES AS YOU PLAY.', 'OFF: ALWAYS AFTERNOON.'] },
   { key: 'fx', label: 'EFFECTS', list: [true, false], show: (v) => (v ? 'FULL' : 'LOW'), help: () => ['PUDDLE REFLECTIONS, DRIPS', 'AND SPRAY. LOW IS LIGHTER.'] },
   { key: 'shake', label: 'SHAKE', list: [true, false], show: (v) => (v ? 'ON' : 'OFF'), help: () => ['SCREEN SHAKE ON HITS', 'AND FORCE FIELD BURSTS.'] },
+  { key: 'flash', label: 'LIGHTNING', list: [true, false], show: (v) => (v ? 'FULL' : 'SOFT'), help: () => ['HOW BRIGHT STORM FLASHES ARE.', 'SOFT IS EASIER ON THE EYES.'] },
   { key: null, label: 'BACK', help: () => ['SETTINGS SAVE AUTOMATICALLY.', ''] },
 ];
-const ROW_Y = 106;
-const ROW_H = 13;
+const ROW_Y = 88;
+const ROW_H = 12;
 
 export class SettingsScene {
   constructor(game) {
@@ -33,7 +35,7 @@ export class SettingsScene {
     this.sel = 0;
     this.t = 0;
     this.changeT = 0;
-    this.hero = heroUmbrella(game, 90, 62, 18);
+    this.hero = heroUmbrella(game, 90, 54, 16);
   }
 
   change(dir) {
@@ -99,7 +101,8 @@ export class SettingsScene {
         }
       });
       const help = ROWS[this.sel].help(s[ROWS[this.sel].key]);
-      help.forEach((line, i) => hint(ctx, line, 192 + i * 9));
+      plate(ctx, 14, 192, 152, 22);
+      help.forEach((line, i) => hint(ctx, line, 196 + i * 9));
       hint(ctx, 'ESC: BACK', 222);
     });
   }

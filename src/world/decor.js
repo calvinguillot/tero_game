@@ -227,6 +227,19 @@ export class Decor {
     }
   }
 
+  // Where each street lamp's glass is, and the ground its light falls on.
+  lampHeads() {
+    const out = [];
+    for (const it of this.side) {
+      if (it.kind !== 'lamp') continue;
+      const cv = sideSprite('lamp', 0, it.side === 1);
+      const x0 = it.side ? GROUND_R + SIDE.lamp.overlap - cv.width : GROUND_L - SIDE.lamp.overlap;
+      const x = x0 + (it.side ? 2 : 5) + 0.5;
+      out.push({ x, y: it.y - cv.height + 3, poolX: x + (it.side ? -4 : 4), groundY: it.y - 2 });
+    }
+    return out;
+  }
+
   drawTreeShadows(ctx) {
     for (const it of this.side) {
       if (it.kind !== 'tree') continue;

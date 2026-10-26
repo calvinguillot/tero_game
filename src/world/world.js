@@ -1,12 +1,13 @@
 import { PAL } from '../render/palette.js';
 import { ellipseSprite } from '../render/pixels.js';
-import { canopyContains, canopyGeom, drawReflection } from '../render/umbrella.js';
+import { canopyContains, canopyGeom, drawReflection, drawUmbrella } from '../render/umbrella.js';
 import { rand } from '../core/math.js';
 import { PF_W, PF_H, GROUND_L, GROUND_R } from '../config.js';
 import { drawWalls } from './walls.js';
 import { LOCATIONS } from './locations.js';
 import { Decor } from './decor.js';
 import { Animals } from './animals.js';
+import { Sky } from './sky.js';
 
 const MAX_DROPS = 500;
 const MAX_RIPPLES = 160;
@@ -21,8 +22,10 @@ const RING_LAG = 0.16;
 // last one runs to the bottom. New locations enter from the top behind a
 // crosswalk and scroll down like everything else.
 export class World {
-  constructor({ speed = 30, rainRate = 110, location = 'town', lowFx = false } = {}) {
+  constructor({ speed = 30, rainRate = 110, location = 'town', lowFx = false, sky = null } = {}) {
     this.lowFx = lowFx; // skips reflections and drips, halves spray
+    this.sky = sky || new Sky();
+    this.softFlash = false; // gentler lightning (accessibility)
     this.drips = [];
     this.refl = null;
     this.t = 0;
@@ -151,8 +154,17 @@ export class World {
     }
   }
 
+  // Puddles swell in storms and shrink in the sun.
+  puddleSize(p) {
+    const k = 0.4 + 0.6 * this.sky.p.wet;
+    return { rx: Math.max(3, Math.round(p.rx * k)), ry: Math.max(2, Math.round(p.ry * k)) };
+  }
+
   inPuddle(x, y) {
-    return this.puddles.some((p) => ((x - p.x) / p.rx) ** 2 + ((y - p.y) / p.ry) ** 2 <= 1);
+    return this.puddles.some((p) => {
+      const { rx, ry } = this.puddleSize(p);
+      return ((x - p.x) / rx) ** 2 + ((y - p.y) / ry) ** 2 <= 1;
+    });
   }
 
   update(dt) {
@@ -166,7 +178,13 @@ export class World {
       this.zones[this.zones.length - 1].b = Infinity;
     }
 
-    this.rainAcc += this.rainRate * dt;
+    const sky = this.sky;
+    sky.update(dt);
+    // Drops drift with the wind; spawn them upwind so the edges stay covered.
+    const drift = sky.wind * 0.9;
+    const spread = Math.min(60, Math.abs(drift) * 0.6);
+
+    this.rainAcc += this.rainRate * sky.p.rain * dt;
     while (this.rainAcc >= 1) {
       this.rainAcc -= 1;
       if (this.drops.length < MAX_DROPS) {
@@ -174,7 +192,7 @@ export class World {
         const far = Math.random() < 0.45;
         const gy = rand(-10, PF_H + 10);
         this.drops.push({
-          x: Math.floor(rand(0, PF_W)),
+          x: rand(-spread, PF_W + spread),
           gy,
           y: gy - rand(40, 170),
           speed: far ? rand(130, 170) : rand(190, 250),
@@ -189,6 +207,7 @@ export class World {
       const d = drops[i];
       d.y += d.speed * dt + sc;
       d.gy += sc;
+      d.x += drift * dt;
       if (d.y >= d.gy) {
         this.land(Math.round(d.x), d.gy, d.far);
         drops[i] = drops[drops.length - 1];
@@ -196,7 +215,7 @@ export class World {
       }
     }
 
-    if (!this.lowFx) this.updateDrips(dt, sc);
+    if (!this.lowFx) this.updateDrips(dt, sc, sky.p.rain > 0.2);
 
     const rip = this.ripples;
     for (let i = rip.length - 1; i >= 0; i--) {
@@ -229,9 +248,9 @@ export class World {
   }
 
   // Water runs off the canopy edges and drips to the ground.
-  updateDrips(dt, sc) {
+  updateDrips(dt, sc, raining) {
     for (const u of this.umbrellas) {
-      if (u.open < 0.8) continue;
+      if (u.open < 0.8 || !raining) continue;
       u.dripT = (u.dripT ?? rand(0, 0.6)) - dt;
       if (u.dripT > 0) continue;
       u.dripT = rand(0.3, 0.8);
@@ -323,7 +342,8 @@ export class World {
       target.clearRect(0, 0, PF_W, PF_H);
     }
     for (const p of this.puddles) {
-      target.drawImage(ellipseSprite(p.rx, p.ry, this.locAt(p.y).puddle, true), Math.round(p.x) - p.rx, Math.round(p.y) - p.ry);
+      const { rx, ry } = this.puddleSize(p);
+      target.drawImage(ellipseSprite(rx, ry, this.locAt(p.y).puddle, true), Math.round(p.x) - rx, Math.round(p.y) - ry);
     }
     if (!this.lowFx) {
       target.globalCompositeOperation = 'source-atop';
@@ -333,10 +353,47 @@ export class World {
     }
     // A glint along the far edge of each puddle.
     for (const p of this.puddles) {
-      const ring = ellipseSprite(p.rx, p.ry, this.locAt(p.y).ripple[2], false);
-      const h = Math.ceil(p.ry * 0.6);
-      ctx.drawImage(ring, 0, 0, ring.width, h, Math.round(p.x) - p.rx, Math.round(p.y) - p.ry, ring.width, h);
+      const { rx, ry } = this.puddleSize(p);
+      const ring = ellipseSprite(rx, ry, this.locAt(p.y).ripple[2], false);
+      const h = Math.ceil(ry * 0.6);
+      ctx.drawImage(ring, 0, 0, ring.width, h, Math.round(p.x) - rx, Math.round(p.y) - ry, ring.width, h);
     }
+  }
+
+  // Night lighting, drawn after the scene is tinted: lamp pools, fireflies,
+  // and a lift on `glow` (the player) so it never sinks into the dark.
+  drawLights(ctx, glow) {
+    const night = this.sky.night;
+    if (night < 0.05) return;
+    ctx.globalCompositeOperation = 'lighter';
+    for (const l of this.decor.lampHeads()) {
+      ctx.globalAlpha = night * 0.8;
+      const pool = (rx, ry) => ctx.drawImage(ellipseSprite(rx, ry, '#30230f', true), Math.round(l.poolX) - rx, Math.round(l.groundY) - ry);
+      pool(24, 10);
+      pool(15, 6);
+      pool(7, 3);
+      ctx.drawImage(ellipseSprite(5, 3, '#6a5220', true), Math.round(l.x) - 5, Math.round(l.y) - 3);
+      ctx.fillStyle = '#ffe9a0';
+      ctx.fillRect(Math.round(l.x) - 1, Math.round(l.y), 3, 1);
+    }
+    // Fireflies, mostly in the park.
+    ctx.fillStyle = '#e8ff8a';
+    for (let i = 0; i < 12; i++) {
+      const y = ((i * 71 + this.scrollY * 0.6 + Math.cos(this.t * 0.5 + i * 2) * 10) % (PF_H + 20)) - 10;
+      if (i >= 4 && this.locAt(y).key !== 'park') continue;
+      if (Math.sin(this.t * 2.5 + i * 1.7) < 0.2) continue;
+      const x = GROUND_L + ((i * 53 + Math.sin(this.t * 0.7 + i) * 18 + 400) % (GROUND_R - GROUND_L));
+      ctx.globalAlpha = night * 0.8;
+      ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+      ctx.globalAlpha = night * 0.3;
+      ctx.fillRect(Math.round(x) - 1, Math.round(y), 3, 1);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    if (glow) {
+      ctx.globalAlpha = night * 0.55;
+      drawUmbrella(ctx, glow);
+    }
+    ctx.globalAlpha = 1;
   }
 
   drawPattern(ctx, loc, top, bottom) {
@@ -396,21 +453,22 @@ export class World {
     }
   }
 
+  // Streaks lean with the wind (that's also how a gust shows itself).
   drawRain(ctx) {
+    const drift = this.sky.wind * 0.9;
+    const streak = (d, from, to) => {
+      const slope = drift / d.speed;
+      if (Math.abs(slope) < 0.08) {
+        ctx.fillRect(Math.round(d.x), Math.floor(d.y) - to, 1, to - from);
+        return;
+      }
+      for (let i = from; i < to; i++) ctx.fillRect(Math.round(d.x - slope * i), Math.floor(d.y) - i - 1, 1, 1);
+    };
     ctx.fillStyle = PAL.rainFar;
-    for (const d of this.drops) {
-      if (d.y < 0 || !d.far) continue;
-      ctx.fillRect(Math.round(d.x), Math.floor(d.y) - d.len, 1, d.len);
-    }
+    for (const d of this.drops) if (d.y >= 0 && d.far) streak(d, 0, d.len);
     ctx.fillStyle = PAL.rain;
-    for (const d of this.drops) {
-      if (d.y < 0 || d.far) continue;
-      ctx.fillRect(Math.round(d.x), Math.floor(d.y) - d.len, 1, d.len - 1);
-    }
+    for (const d of this.drops) if (d.y >= 0 && !d.far) streak(d, 1, d.len);
     ctx.fillStyle = PAL.rainTip;
-    for (const d of this.drops) {
-      if (d.y < 0 || d.far) continue;
-      ctx.fillRect(Math.round(d.x), Math.floor(d.y) - 1, 1, 1);
-    }
+    for (const d of this.drops) if (d.y >= 0 && !d.far) ctx.fillRect(Math.round(d.x), Math.floor(d.y) - 1, 1, 1);
   }
 }

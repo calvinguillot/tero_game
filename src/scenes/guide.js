@@ -149,6 +149,29 @@ const PAGES = [
     },
   },
   {
+    title: 'SKY',
+    draw(ctx) {
+      lines(ctx, [
+        'THE DAY PASSES AS YOU PLAY,',
+        'FROM MORNING TO NIGHT. AT',
+        'NIGHT, STREET LAMPS LIGHT',
+        'THE WAY. THE WEATHER CHANGES',
+        'TOO, AND IT MATTERS:',
+        '',
+        '!SUNNY',
+        'UMBRELLAS CLOSE: THINNER TO',
+        'DODGE. BUT PUDDLES ARE SLICK.',
+        '!HAZY',
+        'FOG HIDES WHO IS COMING.',
+        'WATCH THEIR SHADOWS.',
+        '!STORMY',
+        'HEAVY RAIN AND LIGHTNING.',
+        'GUSTS PUSH YOU SIDEWAYS -',
+        'WIND >>> WARNS YOU FIRST.',
+      ], 14, 32, 10);
+    },
+  },
+  {
     title: 'TIPS',
     draw(ctx) {
       lines(ctx, ['- WATCH FOR ! : SOMEONE IS', '  ABOUT TO MOVE.', '', '- NEAR MISSES SPARKLE.', '  SQUEEZE THROUGH GAPS!', '', '- SAVE THE FIELD FOR', '  TIGHT SPOTS.', '', '- STAY LOW ON THE SCREEN TO', '  SEE THE CROWD COMING.', '', '- PASS ELDERS EARLY.', '', '- NEW TO IT? TRY EASY.'], 14, 34);

@@ -65,10 +65,17 @@ export class Player {
       this.hitT -= dt;
       k *= 0.35;
     }
+    // In the sun, wet puddles are slick: you keep sliding.
+    this.slipping = world.sky.p.slick > 0.5 && world.inPuddle(this.x, this.y + 13);
+    if (this.slipping) k *= 0.12;
     this.vx += (a.x * MAX_SPEED - this.vx) * k;
     this.vy += (a.y * MAX_SPEED - this.vy) * k;
-    this.x += this.vx * dt;
+    // Wind pushes the umbrella like a sail.
+    this.x += (this.vx + world.sky.wind * 0.5) * dt;
     this.y += this.vy * dt;
+    if (this.slipping && Math.hypot(this.vx, this.vy) > 20 && Math.random() < 0.3) {
+      world.splash(this.x, this.y + 13, 1, PAL.rainTip, false, 30);
+    }
 
     const lo = GROUND_L + this.r * 0.8;
     const hi = GROUND_R - this.r * 0.8;
@@ -79,7 +86,7 @@ export class Player {
 
     this.invT = Math.max(0, this.invT - dt);
     this.shieldT = Math.max(0, this.shieldT - dt);
-    this.lean += (clamp(this.vx / 26, -3, 3) - this.lean) * Math.min(1, dt * 12);
+    this.lean += (clamp(this.vx / 26 + world.sky.wind / 30, -3, 3) - this.lean) * Math.min(1, dt * 12);
     // Hit gag: flipped inside out, flapping, for the first part of the hit.
     this.inv = this.hitT > 0.25;
     this.tilt = this.inv ? (Math.floor(this.t * 20) % 2 ? 3 : -3) : this.lean;

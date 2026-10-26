@@ -1,4 +1,5 @@
 import { World } from '../world/world.js';
+import { Sky } from '../world/sky.js';
 import { LOCATION_ORDER } from '../world/locations.js';
 import { Npc, separate } from '../game/npc.js';
 import { DIFFICULTY } from '../game/difficulty.js';
@@ -14,7 +15,9 @@ const SHOWCASE_EVERY = 14; // seconds per location while the street scrolls
 export class Backdrop {
   constructor(game) {
     this.game = game;
-    this.world = new World({ speed: 0, location: LOCATION_ORDER[0], lowFx: !game.data.settings.fx });
+    const s = game.data.settings;
+    const sky = new Sky({ time: 0.3, cycle: 180, dayNight: s.dayNight });
+    this.world = new World({ speed: 0, location: LOCATION_ORDER[0], lowFx: !s.fx, sky });
     this.npcs = [];
     this.walkers = false;
     this.speed = 0;
@@ -27,7 +30,11 @@ export class Backdrop {
   update(dt, extra = []) {
     this.t += dt;
     const w = this.world;
-    w.lowFx = !this.game.data.settings.fx;
+    const s = this.game.data.settings;
+    w.lowFx = !s.fx;
+    w.softFlash = !s.flash;
+    w.sky.setDayNight(s.dayNight);
+    w.sky.takeEvents();
     w.speed +=(this.speed - w.speed) * Math.min(1, dt * 2);
     w.umbrellas = this.npcs.concat(extra);
     w.update(dt);
@@ -49,7 +56,7 @@ export class Backdrop {
   }
 
   draw(ctx, extra = [], overlay = null) {
-    drawStreet(ctx, this.world, this.npcs.concat(extra), null, overlay);
+    drawStreet(ctx, this.world, this.npcs.concat(extra), { overlay });
   }
 }
 
@@ -62,6 +69,8 @@ export function menuHud(game, backdrop) {
     style: s.style,
     best: bestScore(game.data, 'arcade', s.difficulty),
     location: backdrop.world.topLocation.name,
+    timeName: backdrop.world.sky.timeName,
+    weatherName: backdrop.world.sky.weather.name,
     level: DIFFICULTY[s.difficulty].name,
     charge: 1,
     ready: true,

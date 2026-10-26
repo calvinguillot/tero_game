@@ -5,7 +5,7 @@ import { drawJoystick, drawButton, drawChargeBar, drawKey } from './controls.js'
 
 // Arcade-cabinet side panels (desktop) or top/bottom strips (phones).
 // s: { title, score, best, lives, maxLives, color, style, bumpT, lifeLostT,
-//      charge, ready, location, nextAt, level, t }
+//      charge, ready, location, nextAt, level, timeName, weatherName, t }
 
 // Pointer zones in buffer pixels; checked in order.
 const ZONES = {
@@ -100,6 +100,10 @@ function landscape(ctx, s, input) {
   label(ctx, s.location, 285, 22, PAL.text);
   if (s.nextAt != null) label(ctx, `NEXT AT ${s.nextAt}`, 285, 32);
   label(ctx, s.level, 285, 46);
+  if (s.timeName) {
+    label(ctx, s.timeName, 285, 62, PAL.text);
+    label(ctx, s.weatherName, 285, 72, s.weatherName === 'STORMY' ? '#ffd27a' : PAL.text);
+  }
   label(ctx, 'FORCE FIELD', 285, 140);
   drawButton(ctx, 285, 168, pressed, s.ready, s.color, s.t);
   drawChargeBar(ctx, 285, 182, 44, s.charge, s.ready, s.color, s.t);
@@ -123,8 +127,9 @@ function portrait(ctx, s, input) {
 
   drawJoystick(ctx, 38, 308, v, s.color);
   drawButton(ctx, 142, 302, pressed, s.ready, s.color, s.t);
-  label(ctx, s.location, 90, 272, PAL.text);
-  label(ctx, 'FIELD', 90, 284);
-  drawChargeBar(ctx, 90, 292, 30, s.charge, s.ready, s.color, s.t);
-  if (s.nextAt != null) label(ctx, `NEXT ${s.nextAt}`, 90, 304);
+  label(ctx, s.location, 90, 270, PAL.text);
+  if (s.weatherName) label(ctx, s.weatherName, 90, 279);
+  label(ctx, 'FIELD', 90, 288);
+  drawChargeBar(ctx, 90, 296, 30, s.charge, s.ready, s.color, s.t);
+  if (s.nextAt != null) label(ctx, `NEXT ${s.nextAt}`, 90, 306);
 }
