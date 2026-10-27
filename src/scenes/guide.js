@@ -66,17 +66,59 @@ const PLACES = {
   market: ['SHOP AWNINGS, CRATES', 'AND TILED PAVEMENT.'],
   forest: ['BIG TREES, MUD AND FOXES.', 'BRANCHES ARCH OVERHEAD.'],
   harbor: ['CANAL RAILS, LAMPS,', 'GULLS ON THE BOARDS.'],
+  snow: ['IT SNOWS HERE INSTEAD.', 'PUDDLES ARE ICE.'],
+  beach: ['DUNES, SURF AND PALMS.', 'CRABS SCUTTLE ACROSS.'],
+  desert: ['ADOBE AND CACTI. THE SAND', 'DRINKS THE RAIN.'],
 };
 
 const ANIMALS = [
-  ['pigeon', 'PIGEON', 'FLIES OFF'],
-  ['cat', 'CAT', 'DASHES AWAY'],
-  ['duck', 'DUCKS', 'HURRY ALONG'],
-  ['frog', 'FROG', 'HOPS AWAY'],
-  ['gull', 'GULL', 'FLIES OFF'],
-  ['snail', 'SNAIL', 'TAKES ITS TIME'],
-  ['fox', 'FOX', 'TROTS OFF'],
+  [
+    ['pigeon', 'PIGEON', 'FLIES OFF'],
+    ['cat', 'CAT', 'DASHES AWAY'],
+    ['duck', 'DUCKS', 'HURRY ALONG'],
+    ['frog', 'FROG', 'HOPS AWAY'],
+    ['gull', 'GULL', 'FLIES OFF'],
+    ['snail', 'SNAIL', 'TAKES ITS TIME'],
+  ],
+  [
+    ['fox', 'FOX', 'TROTS OFF'],
+    ['rabbit', 'RABBIT', 'HOPS AWAY'],
+    ['robin', 'ROBIN', 'FLIES OFF'],
+    ['crab', 'CRAB', 'SCUTTLES OFF'],
+    ['lizard', 'LIZARD', 'DARTS AWAY'],
+    ['beetle', 'BEETLE', 'HURRIES ON'],
+  ],
 ];
+
+// Four places to a page.
+function placesPage(ctx, keys, first) {
+  if (first) drawText(ctx, 'A NEW PLACE EVERY 25 POINTS.', 90, 32, PAL.text, { ...opt, align: 'center' });
+  else drawText(ctx, 'THEN ROUND AGAIN.', 90, 32, PAL.text, { ...opt, align: 'center' });
+  keys.forEach((key, i) => {
+    const loc = LOCATIONS[key];
+    const y = 44 + i * 40;
+    ctx.fillStyle = loc.ground;
+    ctx.fillRect(26, y, 22, 26);
+    const tile = wallTile(loc.wall);
+    for (let ty = 0; ty < 26; ty += tile.height) ctx.drawImage(tile, 0, 0, tile.width, Math.min(tile.height, 26 - ty), 14, y + ty, tile.width, Math.min(tile.height, 26 - ty));
+    ctx.drawImage(ellipseSprite(6, 3, loc.ripple[0], false), 31, y + 11);
+    drawText(ctx, loc.name, 56, y + 3, PAL.text, opt);
+    lines(ctx, PLACES[key], 56, y + 13);
+  });
+}
+
+function animalsPage(ctx, list, first) {
+  if (first) lines(ctx, ['ANIMALS CROSS NOW AND THEN.', 'THEY ARE HARMLESS AND GET', 'OUT OF YOUR WAY.'], 14, 34);
+  else lines(ctx, ['EACH PLACE HAS ITS OWN.'], 14, 34);
+  list.forEach(([kind, name, what], i) => {
+    const x = i % 2 ? 98 : 14;
+    const y = 72 + Math.floor(i / 2) * 32;
+    const cv = animalIcon(kind);
+    ctx.drawImage(cv, x + 8 - Math.floor(cv.width / 2), y + 8 - cv.height);
+    drawText(ctx, name, x + 20, y, PAL.text, opt);
+    drawText(ctx, what, x + 20, y + 9, PAL.textDim, opt);
+  });
+}
 
 const PAGES = [
   {
@@ -119,37 +161,10 @@ const PAGES = [
   },
   { title: "WHO'S WHO 1/2", draw: (ctx) => walkerPage(ctx, WALKERS[0]) },
   { title: "WHO'S WHO 2/2", draw: (ctx) => walkerPage(ctx, WALKERS[1], true) },
-  {
-    title: 'PLACES',
-    draw(ctx) {
-      drawText(ctx, 'A NEW PLACE EVERY 25 POINTS.', 90, 32, PAL.text, { ...opt, align: 'center' });
-      LOCATION_ORDER.forEach((key, i) => {
-        const loc = LOCATIONS[key];
-        const y = 44 + i * 34;
-        ctx.fillStyle = loc.ground;
-        ctx.fillRect(26, y, 22, 26);
-        const tile = wallTile(loc.wall);
-        for (let ty = 0; ty < 26; ty += tile.height) ctx.drawImage(tile, 0, 0, tile.width, Math.min(tile.height, 26 - ty), 14, y + ty, tile.width, Math.min(tile.height, 26 - ty));
-        ctx.drawImage(ellipseSprite(6, 3, loc.ripple[0], false), 31, y + 11);
-        drawText(ctx, loc.name, 56, y + 3, PAL.text, opt);
-        lines(ctx, PLACES[key], 56, y + 13);
-      });
-    },
-  },
-  {
-    title: 'ANIMALS',
-    draw(ctx) {
-      lines(ctx, ['ANIMALS CROSS NOW AND THEN.', 'THEY ARE HARMLESS AND GET', 'OUT OF YOUR WAY.'], 14, 34);
-      ANIMALS.forEach(([kind, name, what], i) => {
-        const x = i % 2 ? 98 : 14;
-        const y = 72 + Math.floor(i / 2) * 32;
-        const cv = animalIcon(kind);
-        ctx.drawImage(cv, x + 8 - Math.floor(cv.width / 2), y + 8 - cv.height);
-        drawText(ctx, name, x + 20, y, PAL.text, opt);
-        drawText(ctx, what, x + 20, y + 9, PAL.textDim, opt);
-      });
-    },
-  },
+  { title: 'PLACES 1/2', draw: (ctx) => placesPage(ctx, LOCATION_ORDER.slice(0, 4), true) },
+  { title: 'PLACES 2/2', draw: (ctx) => placesPage(ctx, LOCATION_ORDER.slice(4), false) },
+  { title: 'ANIMALS 1/2', draw: (ctx) => animalsPage(ctx, ANIMALS[0], true) },
+  { title: 'ANIMALS 2/2', draw: (ctx) => animalsPage(ctx, ANIMALS[1], false) },
   {
     title: 'SKY',
     draw(ctx) {

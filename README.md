@@ -13,7 +13,13 @@ It runs in the browser using plain JavaScript and the Canvas 2D API. All of the 
 - **Photo mode**: in any mode, pause and pick PHOTO (or press C). The street holds still while the rain keeps falling, and Space or a tap saves a PNG of the playfield at 4× size.
 - **Attract mode**: leave the title screen alone and the game plays a demo of itself.
 - **Walker types**: commuters, wanderers, elders, hurriers, kids and pairs, each with its own readable behavior. Some telegraph their moves with a `!` first.
-- **Places**: Old Town, Rainy Park, Deep Forest, Market St and Harbor, each with its own walls, ground, props and animals. Bridges, flag bunting and big branches sometimes cross over the street, and large trees reach over it; they turn see-through when you walk underneath. Each run starts in a random place, at a random time of day and in random weather, and a new place arrives every 25 points.
+- **Places**: eight of them, in a loop: Old Town → Rainy Park → Deep Forest → Snowy Village → Harbor → Beach → Desert → Market St. Each has its own walls, ground, props and animals.
+  - **Snowy Village:** snow falls instead of rain, the puddles are ice, and the rain sound turns to a soft hush.
+  - **Beach:** dunes on one side and the surf on the other.
+  - **Desert:** the sand soaks up the rain, so its puddles are small.
+  - **Overhead:** bridges, flag bunting, branches, palm fronds and shade sails sometimes cross over the street, and large trees reach over it. They all turn see-through when you walk underneath.
+
+  Each run starts in a random place, at a random time of day and in random weather, and a new place arrives every 25 points (in Zen, every 90 seconds or so of walking).
 - **Day and night**: a four-minute day, with street lamps and fireflies after dark.
 - **Weather**: rainy, drizzle, hazy and stormy, changing every 30–45 seconds and each changing how you play (fog hides the crowd; storms bring gusts and lightning).
 - **Synthesized sound**: effects; rain built from individual drops (a few for a drizzle, a downpour in a storm), wind and thunder; crickets and birds; and a soft tune that changes key at night. Sound effects, music and rain each have their own on/off switch.
@@ -129,7 +135,7 @@ The street scrolls down as you walk up it. Everything that lies on the ground (r
 
 Positions are fractional, but pixels are not. If each object rounded its own `y`, objects spawned at different moments would step to the next pixel on different frames from the pavement, and layers would seem to slide against each other by a pixel. So everything that scrolls is placed through one helper, `world.sy(y)`. It rounds the object's offset from the street and adds the pavement's own pixel row, so everything steps on the same frame. The only things meant to move at other speeds are the far rain layer and the fireflies.
 
-- **Walls** are 12-pixel-wide tiles, one tile set per location: brick, hedge, shop awnings (three color variants), and a harbor rail with canal water. Tiles are built for the left wall and mirrored for the right. They're drawn in a column starting at the pavement's pixel row modulo the tile height, so the column scrolls smoothly without ever drawing off-grid. Each tile's variant is chosen from its position in the world rather than on screen, so an awning keeps its color as it scrolls by.
+- **Walls** are 12-pixel-wide tiles, one tile set per location: brick, hedge, a treeline, shop awnings (three color variants), a harbor rail with canal water, a snow-capped fence and snowy bushes, sand dunes, and adobe with roof beams and windows. Tiles are built for the left wall and mirrored for the right; a location can name a different right-hand wall (`wallRight`), which is how the beach gets the surf. They're drawn in a column starting at the pavement's pixel row modulo the tile height, so the column scrolls smoothly without ever drawing off-grid. Each tile's variant is chosen from its position in the world rather than on screen, so an awning keeps its color as it scrolls by.
 - **Ground patterns** (market paving, harbor planks) are lines drawn at scroll-relative offsets, with staggered seams on the planks.
 - **Zones**: the street is a stack of location bands. A new location enters at the top behind a crosswalk and scrolls down. Each band is clipped and drawn with its own ground, pattern and walls, and anything that needs a color (ripples, puddles, shadows) asks `locAt(y)` which location it's in.
 - **Props** are spawned by distance traveled, not time, from the location at the top of the screen. Side props (bushes, lamps, crates, mushrooms, logs, trees) hug the walls; floor details (drains, manholes, cobbles, leaves, mud) sit on the ground. **Overhead** pieces (stone or timber bridges, flag bunting, arching branches) cross the street above the umbrellas. Trees, bridges and branches fade smoothly to see-through while you are under them, keep the ground beneath them dry, and cast shadows. Trees drip ripples under their leaves and drains gurgle.
@@ -158,6 +164,8 @@ The HUD panels are drawn outside the playfield in the same frame.
 
 - **Raindrops** are spawned with a landing point already chosen. They come in two depths: short, dim, slow far drops and long, bright near drops. Wind slants the streaks.
 - **Landing:** a drop that lands on a canopy throws spray off the umbrella. One that lands on the ground may leave a ripple (more often and bigger in a puddle), and near drops throw a tiny three-drop crown.
+- **Snow:** a drop whose landing spot is in a snowy location becomes a flake when it's spawned. Flakes fall slowly, sway and drift further with the wind. When one lands it leaves a white speck that melts away, instead of a ripple. Since this is decided per drop, the snow starts exactly at the crosswalk as the Snowy Village scrolls in. In snow the audio drops the patter for a low hush, and rainy, drizzle and stormy weather show as SNOWY, FLURRIES and BLIZZARD.
+- **Dry ground:** a location's `wet` factor shrinks its puddles (the desert drinks the rain).
 - **Ripples** are 1–3 concentric pixel ellipses that grow, step down through three shades and fade.
 - **Drips** run off the edges of open umbrellas and leave small rings where they land; footsteps in puddles splash.
 - **Reflections:** puddles are drawn into an offscreen canvas. The umbrellas are then drawn upside down onto it with the `source-atop` blend mode, which keeps only the pixels that land on a puddle, so every puddle mirrors whoever walks past.

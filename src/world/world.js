@@ -168,9 +168,9 @@ export class World {
     }
   }
 
-  // Puddles swell in storms and shrink in the sun.
+  // Puddles swell in storms and shrink in the sun; dry sand drinks them up.
   puddleSize(p) {
-    const k = 0.4 + 0.6 * this.sky.p.wet;
+    const k = (0.4 + 0.6 * this.sky.p.wet) * (this.locAt(p.y).wet ?? 1);
     return { rx: Math.max(3, Math.round(p.rx * k)), ry: Math.max(2, Math.round(p.ry * k)) };
   }
 
@@ -230,13 +230,18 @@ export class World {
         // Two depths: far drops are short, dim and slow; near ones long and bright.
         const far = Math.random() < 0.45;
         const gy = rand(-10, PF_H + 10);
+        // Over the snowy village it falls as slow, drifting flakes.
+        const snow = this.locAt(gy).precip === 'snow';
+        const speed = snow ? (far ? rand(24, 34) : rand(34, 50)) : far ? rand(130, 170) : rand(190, 250);
         this.drops.push({
           x: rand(-spread, PF_W + spread),
           gy,
-          y: gy - rand(40, 170),
-          speed: far ? rand(130, 170) : rand(190, 250),
+          y: gy - rand(40, 170) * (snow ? 0.6 : 1),
+          speed,
           len: far ? 2 + Math.floor(Math.random() * 2) : 4 + Math.floor(Math.random() * 3),
           far,
+          snow,
+          phase: rand(0, 6.3),
         });
       }
     }
@@ -246,9 +251,10 @@ export class World {
       const d = drops[i];
       d.y += d.speed * dt + sc;
       d.gy += sc;
-      d.x += drift * dt;
+      d.x += d.snow ? drift * 1.4 * dt + Math.sin(this.t * 2 + d.phase) * 10 * dt : drift * dt;
       if (d.y >= d.gy) {
-        this.land(Math.round(d.x), d.gy, d.far);
+        if (d.snow) this.settle(Math.round(d.x), d.gy, d.far);
+        else this.land(Math.round(d.x), d.gy, d.far);
         drops[i] = drops[drops.length - 1];
         drops.pop();
       }
@@ -268,7 +274,7 @@ export class World {
     for (let i = ps.length - 1; i >= 0; i--) {
       const p = ps[i];
       p.age += dt;
-      p.vy += (p.float ? 60 : 260) * dt;
+      if (!p.still) p.vy += (p.float ? 60 : 260) * dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt + sc;
       if (p.age > p.life) {
@@ -302,6 +308,24 @@ export class World {
         ds.pop();
       }
     }
+  }
+
+  // A snowflake comes to rest: no ripple or spray, just a speck of white that
+  // lingers on an umbrella or the ground and melts away.
+  settle(x, y, far) {
+    if (this.decor.shelters(x, y)) return;
+    let top = false;
+    for (const u of this.umbrellas) {
+      if (canopyContains(u, x, y)) {
+        if (u === this.player) this.playerDrops++;
+        top = true;
+        break;
+      }
+    }
+    if (!top && (x <= GROUND_L + 1 || x >= GROUND_R - 1)) return;
+    if (far && !top) return;
+    const life = top ? rand(0.4, 0.8) : rand(0.8, 1.6);
+    this.particles.push({ x, y, vx: 0, vy: top ? 4 : 0, age: 0, life, color: '#f4fbff', top, still: true });
   }
 
   land(x, y, far = false) {
@@ -355,7 +379,7 @@ export class World {
       ctx.fillStyle = loc.ground;
       ctx.fillRect(0, top, PF_W, bottom - top);
       this.drawPattern(ctx, loc, top, bottom);
-      drawWalls(ctx, this.viewY, loc.wall, top, bottom);
+      drawWalls(ctx, this.viewY, loc.wall, top, bottom, loc.wallRight);
       ctx.restore();
     }
     this.drawPuddles(ctx);
@@ -511,10 +535,15 @@ export class World {
       for (let i = from; i < to; i++) ctx.fillRect(Math.round(d.x - slope * i), this.sy(d.y) - i - 1, 1, 1);
     };
     ctx.fillStyle = PAL.rainFar;
-    for (const d of this.drops) if (d.y >= 0 && d.far) streak(d, 0, d.len);
+    for (const d of this.drops) if (d.y >= 0 && d.far && !d.snow) streak(d, 0, d.len);
     ctx.fillStyle = PAL.rain;
-    for (const d of this.drops) if (d.y >= 0 && !d.far) streak(d, 1, d.len);
+    for (const d of this.drops) if (d.y >= 0 && !d.far && !d.snow) streak(d, 1, d.len);
     ctx.fillStyle = PAL.rainTip;
-    for (const d of this.drops) if (d.y >= 0 && !d.far) ctx.fillRect(Math.round(d.x), this.sy(d.y) - 1, 1, 1);
+    for (const d of this.drops) if (d.y >= 0 && !d.far && !d.snow) ctx.fillRect(Math.round(d.x), this.sy(d.y) - 1, 1, 1);
+    // Snowflakes: a dim speck far away, a small bright square up close.
+    ctx.fillStyle = '#b8d0e0';
+    for (const d of this.drops) if (d.y >= 0 && d.snow && d.far) ctx.fillRect(Math.round(d.x), this.sy(d.y), 1, 1);
+    ctx.fillStyle = '#f4fbff';
+    for (const d of this.drops) if (d.y >= 0 && d.snow && !d.far) ctx.fillRect(Math.round(d.x), this.sy(d.y) - 1, 2, 2);
   }
 }

@@ -115,7 +115,7 @@ function landscape(ctx, s, input) {
   if (s.level) label(ctx, s.level, 285, 46);
   if (s.timeName) {
     label(ctx, s.timeName, 285, 62, PAL.text);
-    label(ctx, s.weatherName, 285, 72, s.weatherName === 'STORMY' || s.weatherName === 'SUN RUSH' ? RUSH_GOLD : PAL.text);
+    label(ctx, s.weatherName, 285, 72, ['STORMY', 'BLIZZARD', 'SUN RUSH'].includes(s.weatherName) ? RUSH_GOLD : PAL.text);
   }
   if (!s.zen) {
     label(ctx, 'FORCE FIELD', 285, 140);

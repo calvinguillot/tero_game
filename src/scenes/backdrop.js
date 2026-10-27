@@ -70,7 +70,7 @@ export function menuHud(game, backdrop) {
     best: bestScore(game.data, 'arcade', s.difficulty),
     location: backdrop.world.topLocation.name,
     timeName: backdrop.world.sky.timeName,
-    weatherName: backdrop.world.sky.weather.name,
+    weatherName: backdrop.world.sky.label(backdrop.world.locAt(150).precip === 'snow'),
     level: s.mode === 'zen' ? 'ZEN' : DIFFICULTY[s.difficulty].name,
     charge: 1,
     ready: true,

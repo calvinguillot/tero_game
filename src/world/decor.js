@@ -80,6 +80,77 @@ const SIDE = {
       'kKKk......',
     ],
   },
+  // Snowy village.
+  snowman: {
+    colors: { w: '#f4fbff', s: '#c4dcea', k: '#2a2a34', o: '#f08a2a', r: '#d04a3a' },
+    overlap: 0,
+    rows: [
+      '...kkkk...',
+      '...kkkk...',
+      '..kkkkkk..',
+      '...wwww...',
+      '..wkwwkw..',
+      '..wwwwoo..',
+      '...wwws...',
+      '..rrrrrr..',
+      '.wwwrwwws.',
+      'wwwwkwwwws',
+      'wwwwwwwwws',
+      'wwwwkwwwss',
+      '.wwwwwwss.',
+      '..ssssss..',
+    ],
+  },
+  drift: {
+    colors: { w: '#f4fbff', s: '#c4dcea', b: '#a8c8da' },
+    overlap: 2,
+    rows: ['...wwwww....', '.wwwwwwwww..', 'wwwwwwwwwwws', 'sssssssssssb'],
+  },
+  // Desert.
+  cactus: {
+    colors: { g: '#4a9a52', G: '#2e6e3a', p: '#f4a6c6', y: '#c8a46a' },
+    overlap: 0,
+    sway: 0,
+    rows: [
+      '....p....',
+      '...gGg...',
+      '...gGg...',
+      'g..gGg...',
+      'gG.gGg..g',
+      'gG.gGg.gG',
+      '.gggGggGg',
+      '...gGg...',
+      '...gGg...',
+      '...gGg...',
+      '..yyyyy..',
+    ],
+  },
+  rock: {
+    colors: { r: '#b09a80', R: '#8a7460', h: '#cdb89c' },
+    overlap: 1,
+    rows: ['..hhrr..', '.hrrrrr.', 'rrrrrrrR', 'rrrrrRRR', '.RRRRRR.'],
+  },
+  drytuft: { colors: { g: '#c8a84a', G: '#9a7a32', l: '#e0c870' }, overlap: 2, sway: 2, rows: ['l..g..l', '.l.g.l.', 'g.lgl.g', '.gGGGg.', '..GGG..'] },
+  // Beach.
+  beachbrella: {
+    colors: { r: '#e05a6a', w: '#f4f0e8', k: '#5a4a3a', y: '#d4b67a' },
+    overlap: 0,
+    rows: [
+      '....rrww....',
+      '..rrrwwwrr..',
+      '.rrwwwrrrww.',
+      'rrwwwrrrwwwr',
+      '.....k......',
+      '.....k......',
+      '.....k......',
+      '....yky.....',
+    ],
+  },
+  bucket: {
+    colors: { y: '#f2d04a', Y: '#d0a030', k: '#3a3a44', s: '#3fa6ef' },
+    overlap: 0,
+    rows: ['.kkkk.s', 'k....ks', 'yyyyyys', 'yYyyyy.', '.yyyy..', '.YYYY..'],
+  },
   // Built procedurally (see broadleaf/pine below).
   tree: { tall: true, crown: true },
   bigtree: { tall: true, crown: true },
@@ -118,6 +189,10 @@ const TREE_COLORS = {
   green: [null, '#5a4228', '#7a5a38', '#2a6a34', '#3a8a44', '#5aae52', '#1d4a26', '#f4a6c6'],
   dark: [null, '#4a3622', '#6a4e30', '#1f5530', '#2c703c', '#46944a', '#163a20', '#f4a6c6'],
   autumn: [null, '#5a4228', '#7a5a38', '#a8502a', '#d0803a', '#f2b04a', '#5a2a18', '#f2d04a'],
+  // Snow sits where the light would be.
+  snow: [null, '#4a3622', '#6a4e30', '#1f5530', '#2c703c', '#f4fbff', '#163a20', '#ffffff'],
+  // Palms: ringed bark, bright fronds, coconuts in slot 7.
+  palm: [null, '#8a6a44', '#a8845a', '#2e7a3a', '#4aa04a', '#7acc5e', '#1d4a26', '#5a3a22'],
 };
 const LEAF = 3;
 
@@ -125,6 +200,8 @@ const LEAF = 3;
 const SPECIES = {
   park: { green: 5, blossom: 3, autumn: 2 },
   forest: { pine: 5, darkround: 5 },
+  snow: { snowpine: 1 },
+  beach: { palm: 1 },
   other: { green: 8, autumn: 2 },
 };
 
@@ -286,22 +363,117 @@ function bake({ b, tx, clumps }, colors) {
   return { cv, flip: mirror(cv), mask, w: b.w, h: b.h, tx, clumps };
 }
 
-const TREE_SIZE = { tree: [46, 36], bigtree: [78, 60], branches: [120, 40] };
+// One palm frond from (cx, cy): a spine arching out and drooping, with
+// leaflets hanging off it. Returns where it ends.
+function frond(b, cx, cy, a, len, droop, thick) {
+  let prev = [cx, cy];
+  for (let i = 1; i <= len; i++) {
+    const t = i / len;
+    const p = [cx + Math.cos(a) * len * t, cy + Math.sin(a) * len * t * 0.7 + droop * t * t];
+    b.line(prev[0], prev[1], p[0], p[1], 4);
+    if (thick) b.line(prev[0], prev[1] + 1, p[0], p[1] + 1, 4);
+    if (i % 2 === 0 && i < len - 1) {
+      const hang = 2 + Math.round(3 * (1 - t));
+      b.line(p[0], p[1] + 1, p[0] - 1, p[1] + hang, 3);
+      b.line(p[0], p[1] + 1, p[0] + 1, p[1] + hang, 3);
+    }
+    if (t < 0.6) b.set(p[0], p[1] - 1, 5);
+    prev = p;
+  }
+  return prev;
+}
+
+// A palm leaning out over the sand: a ringed, curving trunk and a crown of
+// drooping fronds around a few coconuts.
+function palm(W, H) {
+  const b = new PixBuf(W, H);
+  const k = W / 46;
+  const tx = Math.round(W * 0.38);
+  const topX = tx + rand(9, 13) * k;
+  const topY = H * 0.34;
+  let prev = [tx, H - 1];
+  for (let i = 1; i <= 12; i++) {
+    const t = i / 12;
+    const p = [lerp(tx, topX, t * t), lerp(H - 1, topY, t)];
+    limb(b, prev[0], prev[1], p[0], p[1], 3);
+    if (i % 2 === 0) b.line(p[0], p[1], p[0] + 2, p[1], 2);
+    prev = p;
+  }
+  const clumps = [];
+  const n = randInt(6, 8);
+  for (let i = 0; i < n; i++) {
+    const a = -Math.PI * 1.08 + ((i + 0.5) / n) * Math.PI * 1.16 + rand(-0.12, 0.12);
+    const [ex, ey] = frond(b, topX, topY, a, rand(0.3, 0.42) * W, rand(4, 8) * k, k > 1.3);
+    clumps.push([(topX + ex) / 2, (topY + ey) / 2, 5 * k, 3 * k]);
+  }
+  for (const [dx, dy] of [[-2, 2], [1, 3], [-1, 4]]) b.fillEllipse(topX + dx * k, topY + dy * k, 1.6 * k, 1.4 * k, 7);
+  finishLeaves(b, false);
+  return { b, tx, clumps };
+}
+
+// Palm fronds reaching across the street from one side.
+function fronds(W, H) {
+  const b = new PixBuf(W, H);
+  const clumps = [];
+  const n = randInt(4, 5);
+  for (let i = 0; i < n; i++) {
+    const a = -0.55 + (i / (n - 1)) * 1.3 + rand(-0.1, 0.1);
+    const [ex, ey] = frond(b, -2, H * 0.32, a, rand(0.6, 0.85) * W, rand(4, 10), true);
+    clumps.push([ex * 0.5, (H * 0.32 + ey) / 2, 8, 4], [ex * 0.85, ey, 6, 3]);
+  }
+  b.fillEllipse(1, H * 0.32, 4, 3, 7);
+  finishLeaves(b, false);
+  return { b, tx: 0, clumps };
+}
+
+// A shade sail stretched over the desert road: a cloth triangle, seams and ropes.
+// Cloth uses the leaf slots so it keeps the rain off like leaves do.
+const SAIL_COLORS = [null, '#4a3a2a', '#4a3a2a', '#c8b490', '#e8d8b8', '#f8f0e0', '#9a8460', '#c8b490'];
+function sail(W, H) {
+  const b = new PixBuf(W, H);
+  const A = [4, 6];
+  const B = [W - 6, rand(10, 16)];
+  const C = [W * rand(0.28, 0.4), H - 5];
+  b.fillPoly([A, B, C], 4);
+  // The cloth sags: a shaded belly towards the far corner, a lit edge on top.
+  b.fillPoly([[lerp(A[0], C[0], 0.5), lerp(A[1], C[1], 0.5)], [lerp(B[0], C[0], 0.45), lerp(B[1], C[1], 0.45)], C], 3);
+  b.line(A[0], A[1] + 1, B[0], B[1] + 1, 5);
+  b.line(A[0], A[1], lerp(B[0], C[0], 0.5), lerp(B[1], C[1], 0.5), 3);
+  b.outline(6);
+  b.line(A[0], A[1], 0, 0, 1);
+  b.line(B[0], B[1], W - 1, B[1] - 4, 1);
+  b.line(C[0], C[1], C[0] - 5, H - 1, 1);
+  const clumps = [[W * 0.3, H * 0.35, 14, 6], [W * 0.55, H * 0.3, 14, 6], [W * 0.38, H * 0.6, 10, 5]];
+  return { b, tx: 0, clumps };
+}
+
+const TREE_SIZE = { tree: [46, 36], bigtree: [78, 60], branches: [120, 40], fronds: [120, 44], sail: [110, 40] };
 const treeCache = new Map();
+
+function speciesFor(kind, locKey) {
+  if (kind === 'branches') return locKey === 'forest' ? 'dark' : locKey === 'snow' ? 'snow' : 'green';
+  if (kind === 'fronds' || kind === 'sail') return kind;
+  return pick(SPECIES[locKey] || SPECIES.other);
+}
+
+function buildTree(kind, species, W, H) {
+  if (kind === 'branches') return bake(bough(W, H), TREE_COLORS[species]);
+  if (species === 'fronds') return bake(fronds(W, H), TREE_COLORS.palm);
+  if (species === 'sail') return bake(sail(W, H), SAIL_COLORS);
+  if (species === 'palm') return bake(palm(W, H), TREE_COLORS.palm);
+  if (species === 'pine') return bake(pine(W, H), TREE_COLORS.dark);
+  if (species === 'snowpine') return bake(pine(W, H), TREE_COLORS.snow);
+  const colors = species === 'darkround' ? TREE_COLORS.dark : species === 'autumn' ? TREE_COLORS.autumn : TREE_COLORS.green;
+  return bake(broadleaf(W, H, species === 'blossom'), colors);
+}
+
 function treeVariant(kind, locKey) {
   const [W, H] = TREE_SIZE[kind];
-  const species = kind === 'branches' ? (locKey === 'forest' ? 'dark' : 'green') : pick(SPECIES[locKey] || SPECIES.other);
+  const species = speciesFor(kind, locKey);
   const key = `${kind}-${species}`;
   let list = treeCache.get(key);
   if (!list) treeCache.set(key, (list = []));
-  if (list.length < 4) {
-    if (kind === 'branches') list.push(bake(bough(W, H), TREE_COLORS[species]));
-    else if (species === 'pine') list.push(bake(pine(W, H), TREE_COLORS.dark));
-    else {
-      const colors = species === 'darkround' ? TREE_COLORS.dark : species === 'autumn' ? TREE_COLORS.autumn : TREE_COLORS.green;
-      list.push(bake(broadleaf(W, H, species === 'blossom'), colors));
-    }
-  }
+  if (list.length < 4) list.push(buildTree(kind, species, W, H));
   return choice(list);
 }
 
@@ -335,21 +507,22 @@ function cobbles() {
   return b.toCanvas([null, '#3a7896', '#29627f']);
 }
 
-function leaves() {
+// A few small things scattered on the ground (fallen leaves, shells).
+function scatter(colors) {
   const b = new PixBuf(26, 12);
   const n = Math.floor(rand(4, 8));
   for (let i = 0; i < n; i++) {
-    const c = Math.floor(rand(1, 4));
+    const c = Math.floor(rand(1, colors.length));
     const x = Math.floor(rand(1, 24));
     const y = Math.floor(rand(1, 11));
     b.set(x, y, c);
     if (Math.random() < 0.6) b.set(x + 1, y, c);
   }
-  return b.toCanvas([null, '#e0903a', '#f2c04a', '#c8503a']);
+  return b.toCanvas(colors);
 }
 
-// A lumpy patch of mud with a wetter middle.
-function mud() {
+// A lumpy patch (mud, a snowdrift, drifted sand) with a different middle.
+function mound(colors) {
   const b = new PixBuf(40, 18);
   for (let i = 0; i < 4; i++) b.fillEllipse(rand(12, 28), rand(7, 11), rand(8, 12), rand(4, 6), 1);
   for (let i = 0; i < 2; i++) b.fillEllipse(rand(15, 25), rand(8, 10), rand(4, 7), rand(2, 3), 2);
@@ -358,17 +531,73 @@ function mud() {
     const y = Math.floor(rand(0, 18));
     if (b.get(x, y) === 1) b.set(x, y, 3);
   }
-  return b.toCanvas([null, '#4a4030', '#3a3326', '#5a4e3a']);
+  return b.toCanvas(colors);
 }
 
-const variants = { cobbles: [], leaves: [], mud: [] };
+// A trail of footprints across the snow.
+function prints() {
+  const b = new PixBuf(36, 20);
+  const dir = Math.random() < 0.5 ? 1 : -1;
+  for (let i = 0; i < 6; i++) {
+    const side = i % 2 ? 2 : -2;
+    const x = (dir > 0 ? 3 + i * 5 : 31 - i * 5) + side * 0.5;
+    const y = 3 + i * 2.5 + side;
+    b.fillEllipse(x, y, 1.2, 1.6, 1);
+    b.set(x, y - 2, 2);
+  }
+  return b.toCanvas([null, '#7898b0', '#88a8c0']);
+}
+
+// Strands of seaweed washed up on the sand.
+function seaweed() {
+  const b = new PixBuf(28, 12);
+  for (let s = randInt(2, 3); s > 0; s--) {
+    const y0 = rand(3, 9);
+    const x0 = rand(1, 8);
+    const c = Math.random() < 0.5 ? 1 : 2;
+    for (let x = 0; x < rand(10, 18); x++) b.set(x0 + x, y0 + Math.round(Math.sin(x * 0.8) * 1.2), c);
+  }
+  return b.toCanvas([null, '#4a6a3a', '#6a8a4a']);
+}
+
+// Dry, cracked earth: lines wandering out from the middle and forking.
+function cracks() {
+  const b = new PixBuf(40, 16);
+  const walk = (x, y, a, n) => {
+    for (let i = 0; i < n; i++) {
+      a += rand(-0.6, 0.6);
+      const nx = x + Math.cos(a) * 2;
+      const ny = y + Math.sin(a) * 1.2;
+      b.line(x, y, nx, ny, 1);
+      if (Math.random() < 0.15 && n > 3) walk(nx, ny, a + rand(-1.2, 1.2), Math.floor(n / 2));
+      x = nx;
+      y = ny;
+    }
+  };
+  for (let i = 0; i < 4; i++) walk(20, 8, (i / 4) * Math.PI * 2 + rand(-0.3, 0.3), randInt(4, 8));
+  return b.toCanvas([null, '#7e5636']);
+}
+
+const MUD = [null, '#4a4030', '#3a3326', '#5a4e3a'];
+const SNOWDRIFT = [null, '#e8f4fa', '#d0e4ee', '#ffffff'];
+const SANDDRIFT = [null, '#c49a68', '#d4ae7a', '#b08458'];
+
+const variants = {};
 const MAKERS = {
   cobbles,
-  leaves,
-  mud,
+  leaves: () => scatter([null, '#e0903a', '#f2c04a', '#c8503a']),
+  shells: () => scatter([null, '#f4d0c0', '#ffffff', '#e8a890']),
+  mud: () => mound(MUD),
+  snowdrift: () => mound(SNOWDRIFT),
+  sanddrift: () => mound(SANDDRIFT),
+  prints,
+  seaweed,
+  cracks,
 };
+// Patches that slow you down on Hard.
+const SLOW = new Set(['mud', 'snowdrift', 'sanddrift']);
 function variant(kind) {
-  const list = variants[kind];
+  const list = (variants[kind] ??= []);
   if (list.length < 4) list.push(MAKERS[kind]());
   return choice(list);
 }
@@ -423,6 +652,8 @@ const OVERHEAD = {
   bridge: { make: (loc) => bridge(loc.key === 'harbor'), dry: true, fade: true },
   bunting: { make: () => bunting(), dry: false, fade: false },
   branches: { make: (loc) => treeVariant('branches', loc.key), dry: true, fade: true, side: true },
+  fronds: { make: (loc) => treeVariant('fronds', loc.key), dry: true, fade: true, side: true },
+  sail: { make: (loc) => treeVariant('sail', loc.key), dry: true, fade: true, side: true },
 };
 
 // ---- Placement & behaviour --------------------------------------------------
@@ -456,7 +687,7 @@ export class Decor {
     const kind = pick(loc.floor);
     const it = { kind, y, x: rand(GROUND_L + 22, GROUND_R - 22), gurgleT: rand(0.3, 1.2) };
     if (kind === 'drain') it.x = Math.random() < 0.5 ? GROUND_L + 8 : GROUND_R - 8;
-    if (kind === 'cobbles' || kind === 'leaves' || kind === 'mud') it.cv = variant(kind);
+    if (MAKERS[kind]) it.cv = variant(kind);
     else it.cv = charSprite(`floor-${kind}`, FLOOR[kind].rows, FLOOR[kind].colors);
     this.floor.push(it);
   }
@@ -565,9 +796,10 @@ export class Decor {
     return false;
   }
 
+  // On a patch of mud, snowdrift or drifted sand.
   inMud(x, y) {
     for (const it of this.floor) {
-      if (it.kind !== 'mud') continue;
+      if (!SLOW.has(it.kind)) continue;
       const dx = (x - it.x) / (it.cv.width * 0.4);
       const dy = (y - it.y) / (it.cv.height * 0.4);
       if (dx * dx + dy * dy <= 1) return true;

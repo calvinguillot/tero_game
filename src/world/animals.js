@@ -82,6 +82,53 @@ const KINDS = {
     speed: 3,
     startle: 'none',
   },
+  // Snowy village.
+  rabbit: {
+    frames: [['....w.w.', '....w.w.', '...wwwww', '.w.wwwkp', 'wwwwwww.', '.wwwwww.', '.ss..ss.']],
+    colors: { w: '#f4f8fa', s: '#c8d4dc', k: '#1a2630', p: '#f0a0b0' },
+    speed: 0,
+    hop: true,
+    startle: 'hop',
+  },
+  robin: {
+    frames: PIGEON_ROWS,
+    fly: BIRD_FLY,
+    colors: { g: '#7a5a3a', G: '#5a4028', p: '#e0503a', k: '#1a2630', o: '#3a2a1a' },
+    speed: 14,
+    startle: 'fly',
+  },
+  // Beach: scuttles sideways, and fast when startled.
+  crab: {
+    frames: [
+      ['.k.....k.', 'r.rrrrr.r', 'rrrRRRrrr', '.r.r.r.r.'],
+      ['.k.....k.', 'r.rrrrr.r', 'rrrRRRrrr', 'r.r.r.r.r'],
+    ],
+    colors: { r: '#e0503a', R: '#b0382a', k: '#1a1a1a' },
+    speed: 24,
+    animRate: 10,
+    startle: 'dash',
+  },
+  // Desert.
+  lizard: {
+    frames: [
+      ['...l...l...', 'LLlllllllkl', '...l...l...'],
+      ['..l.....l..', 'LLlllllllkl', '....l.l....'],
+    ],
+    colors: { l: '#7aa04a', L: '#5a7a3a', k: '#1a2010' },
+    speed: 40,
+    animRate: 12,
+    startle: 'dash',
+  },
+  beetle: {
+    frames: [
+      ['.kkk.', 'kKkKk', '.k.k.'],
+      ['.kkk.', 'kKkKk', 'k...k'],
+    ],
+    colors: { k: '#2a2a3a', K: '#4a5a8a' },
+    speed: 8,
+    animRate: 8,
+    startle: 'hurry',
+  },
 };
 
 function sprite(kind, rows, frame, flip, fly = false) {

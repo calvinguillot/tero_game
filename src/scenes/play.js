@@ -45,6 +45,11 @@ const WEATHER_NEWS = {
   hazy: "HAZE ROLLS IN",
   stormy: "STORM!",
 };
+const SNOW_NEWS = {
+  rainy: "SNOW AGAIN",
+  drizzle: "A FEW FLURRIES",
+  stormy: "BLIZZARD!",
+};
 
 // Arcade mode: dodge the crowd, +1 for every umbrella that gets past you.
 // With { demo: true } it plays itself (attract mode), silently and without
@@ -166,7 +171,9 @@ export class PlayScene {
     return this.world.sky.timeName;
   }
   get weatherName() {
-    return this.rushT > 0 ? "SUN RUSH" : this.world.sky.weather.name;
+    if (this.rushT > 0) return "SUN RUSH";
+    const snowy = this.world.locAt(this.player.y).precip === "snow";
+    return this.world.sky.label(snowy);
   }
   get rush() {
     return {
@@ -524,12 +531,11 @@ export class PlayScene {
   handleSky() {
     for (const e of this.world.sky.takeEvents()) {
       if (e === "weather") {
+        const key = this.world.sky.weatherKey;
+        const snowy = this.world.locAt(this.player.y).precip === "snow";
+        const text = (snowy && SNOW_NEWS[key]) || WEATHER_NEWS[key];
         if (this.quietWeather > 0) this.quietWeather--;
-        else
-          this.toasts.push({
-            text: WEATHER_NEWS[this.world.sky.weatherKey],
-            t: 0,
-          });
+        else this.toasts.push({ text, t: 0 });
       } else if (e === "gust") {
         // Umbrellas get caught and turn inside out (about half of them, and
         // always at least one), staying flipped while the gust blows.

@@ -112,6 +112,87 @@ const BUILDERS = {
       c.fillRect(7, 0, 5, 3);
     }),
   ],
+  // Snowy village: a snow bank behind a capped wooden fence with icicles,
+  // and snow-covered bushes.
+  snowfence: () => [
+    canvas(WALL, 12, (c) => {
+      c.fillStyle = '#dfeef6';
+      c.fillRect(0, 0, WALL, 12);
+      c.fillStyle = '#b8d2e2';
+      c.fillRect(8, 0, 1, 12);
+      c.fillStyle = '#6a4e30';
+      c.fillRect(0, 4, 9, 2);
+      c.fillRect(0, 9, 9, 2);
+      c.fillStyle = '#4a3622';
+      c.fillRect(2, 2, 2, 10);
+      c.fillStyle = '#ffffff';
+      c.fillRect(0, 3, 9, 1);
+      c.fillRect(0, 8, 9, 1);
+      c.fillRect(2, 1, 2, 1);
+      c.fillStyle = '#a8d4ec';
+      c.fillRect(9, 4, 1, 3);
+      c.fillRect(10, 5, 1, 1);
+      c.fillRect(9, 9, 1, 2);
+    }),
+    leafy(16, [
+      [5, 5, 6.5, 5],
+      [5, 13, 6, 4.5],
+    ], ['#c8dce8', '#e8f4fa', '#ffffff', '#8aa8bc'], [[3, 8, '#2c5a44'], [7, 9, '#2c5a44'], [4, 15, '#2c5a44']]),
+  ],
+  // Sand dunes with marram grass.
+  dune: () => [
+    leafy(16, [
+      [4, 4, 6, 5],
+      [6, 12, 6.5, 5],
+    ], ['#b8985e', '#d4b67a', '#ecd49e', '#9a7c4a'], [[4, 2, '#6a8a3a'], [5, 1, '#6a8a3a'], [7, 11, '#7a9a4a'], [8, 10, '#7a9a4a'], [3, 13, '#6a8a3a']]),
+    leafy(16, [
+      [6, 8, 6.5, 6],
+      [3, 1, 5, 3],
+      [3, 15, 5, 3],
+    ], ['#b8985e', '#d4b67a', '#ecd49e', '#9a7c4a'], [[5, 6, '#7a9a4a'], [6, 5, '#7a9a4a']]),
+  ],
+  // The sea, with foam where the waves wash up the sand.
+  surf: () =>
+    [0, 1].map((v) =>
+      canvas(WALL, 12, (c) => {
+        c.fillStyle = '#2a6a8a';
+        c.fillRect(0, 0, WALL, 12);
+        c.fillStyle = '#4a9ab8';
+        c.fillRect(1, 2 + v * 4, 4, 1);
+        c.fillRect(3, 8 - v * 3, 3, 1);
+        const edge = (y) => 8 + Math.round(Math.sin((y + v * 6) * 0.55) * 1.5);
+        c.fillStyle = '#cfe8ee';
+        for (let y = 0; y < 12; y++) c.fillRect(edge(y), y, 4, 1);
+        c.fillStyle = '#ffffff';
+        for (let y = 0; y < 12; y += 3) c.fillRect(edge(y), y, 1, 1);
+      }),
+    ),
+  // Adobe walls with roof-beam ends and the odd window.
+  adobe: () =>
+    [false, true].map((win) =>
+      canvas(WALL, 20, (c) => {
+        c.fillStyle = '#c88a5a';
+        c.fillRect(0, 0, WALL, 20);
+        c.fillStyle = '#e0a878';
+        c.fillRect(0, 0, WALL, 1);
+        c.fillRect(0, 10, WALL, 1);
+        c.fillStyle = '#a86a40';
+        c.fillRect(10, 0, 2, 20);
+        c.fillStyle = '#5a3a22';
+        c.fillRect(9, 3, 3, 2);
+        c.fillRect(9, 13, 3, 2);
+        if (win) {
+          c.fillStyle = '#e0a878';
+          c.fillRect(2, 5, 5, 7);
+          c.fillStyle = '#4a2a1a';
+          c.fillRect(3, 6, 3, 5);
+        } else {
+          c.fillStyle = '#b87a4c';
+          c.fillRect(3, 6, 1, 1);
+          c.fillRect(6, 16, 1, 1);
+        }
+      }),
+    ),
 };
 
 const tiles = {};
@@ -128,18 +209,22 @@ export function wallTile(type) {
   return tileSet(type).left[0];
 }
 
-export function drawWalls(ctx, scrollY, type, top, bottom) {
-  const set = tileSet(type);
-  const th = set.h;
+// `rightType` gives the right-hand side a different wall (the sea at the beach).
+export function drawWalls(ctx, scrollY, type, top, bottom, rightType = type) {
+  column(ctx, scrollY, tileSet(type).left, 0, top, bottom, 0);
+  column(ctx, scrollY, tileSet(rightType).right, GROUND_R, top, bottom, 1);
+  ctx.fillStyle = 'rgba(10, 30, 45, 0.25)';
+  ctx.fillRect(WALL, top, 2, bottom - top);
+  ctx.fillRect(GROUND_R - 1, top, 1, bottom - top);
+}
+
+function column(ctx, scrollY, list, x, top, bottom, shift) {
+  const th = list[0].height;
   const off = Math.floor(scrollY) % th;
   for (let y = off - th; y < bottom; y += th) {
     if (y + th < top) continue;
     // Index in world space so each tile keeps its variant while scrolling.
-    const i = Math.abs(Math.round((y - Math.floor(scrollY)) / th)) % set.left.length;
-    ctx.drawImage(set.left[i], 0, y);
-    ctx.drawImage(set.right[(i + 1) % set.left.length], GROUND_R, y);
+    const i = Math.abs(Math.round((y - Math.floor(scrollY)) / th)) + shift;
+    ctx.drawImage(list[i % list.length], x, y);
   }
-  ctx.fillStyle = 'rgba(10, 30, 45, 0.25)';
-  ctx.fillRect(WALL, top, 2, bottom - top);
-  ctx.fillRect(GROUND_R - 1, top, 1, bottom - top);
 }

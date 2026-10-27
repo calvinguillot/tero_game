@@ -1,5 +1,7 @@
 // Each location recolours the street and decides which walls, side props,
 // ground details, things overhead and animals show up. Weights are relative.
+// Optional: wallRight (a different right-hand wall), precip ('snow' instead
+// of rain), wet (puddle size factor; dry sand drinks the rain).
 export const LOCATIONS = {
   town: {
     key: 'town',
@@ -76,6 +78,56 @@ export const LOCATIONS = {
     overhead: { bridge: 2 },
     animals: { gull: 4, cat: 2 },
   },
+  snow: {
+    key: 'snow',
+    name: 'SNOWY VILLAGE',
+    ground: '#8fb0c4',
+    line: '#86a6ba',
+    puddle: '#b4d6e8', // puddles freeze into ice
+    shadow: '#7698ae',
+    ripple: ['#f4fbff', '#d4ecf8', '#b0d2e4'],
+    wall: 'snowfence',
+    pattern: 'none',
+    precip: 'snow',
+    side: { tree: 2, bigtree: 1, snowman: 2, drift: 3, lamp: 2 },
+    floor: { prints: 4, snowdrift: 3, drain: 1 },
+    overhead: { branches: 2, bunting: 1 },
+    animals: { rabbit: 3, robin: 2, fox: 1 },
+  },
+  beach: {
+    key: 'beach',
+    name: 'BEACH',
+    ground: '#a08a5c',
+    line: '#968056',
+    puddle: '#7e98a0',
+    shadow: '#8a7550',
+    ripple: ['#eef8f4', '#c2dcd8', '#9cbcb8'],
+    wall: 'dune',
+    wallRight: 'surf',
+    pattern: 'none',
+    wet: 0.8,
+    side: { tree: 3, beachbrella: 2, bucket: 2, tuft: 3 },
+    floor: { shells: 4, seaweed: 3 },
+    overhead: { fronds: 2, bunting: 1 },
+    animals: { crab: 4, gull: 3 },
+  },
+  desert: {
+    key: 'desert',
+    name: 'DESERT',
+    ground: '#b0805a',
+    line: '#a47652',
+    puddle: '#8c7466',
+    shadow: '#98684a',
+    ripple: ['#f8e6c8', '#dcc09a', '#bc9c74'],
+    wall: 'adobe',
+    pattern: 'none',
+    wet: 0.55,
+    side: { cactus: 4, rock: 3, pot: 2, drytuft: 3 },
+    floor: { cracks: 4, sanddrift: 3 },
+    overhead: { sail: 2 },
+    animals: { lizard: 3, beetle: 2 },
+  },
 };
 
-export const LOCATION_ORDER = ['town', 'park', 'forest', 'market', 'harbor'];
+// The loop you walk, one place into the next.
+export const LOCATION_ORDER = ['town', 'park', 'forest', 'snow', 'harbor', 'beach', 'desert', 'market'];

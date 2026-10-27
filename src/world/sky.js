@@ -29,6 +29,7 @@ export const WEATHER = {
   stormy: { name: 'STORMY', rain: 2.2, wind: 1, fog: 0, clouds: 0.55, lightning: 1, open: 1, wet: 1.15, sun: 0 },
   sunny: { name: 'SUNNY', rain: 0, wind: 0, fog: 0, clouds: 0, lightning: 0, open: 0, wet: 0.45, sun: 1 },
 };
+const SNOW_NAMES = { rainy: 'SNOWY', drizzle: 'FLURRIES', stormy: 'BLIZZARD' };
 const PARAMS = ['rain', 'wind', 'fog', 'clouds', 'lightning', 'open', 'wet', 'sun'];
 const TRANSITION = 6; // seconds to blend between weathers
 const WEIGHTS = { rainy: 3, drizzle: 2, hazy: 2, stormy: 3 };
@@ -73,6 +74,12 @@ export class Sky {
 
   get weather() {
     return WEATHER[this.weatherKey];
+  }
+
+  // The weather's name, as it falls where you are: rain is snow in the snowy
+  // village.
+  label(snowy) {
+    return (snowy && SNOW_NAMES[this.weatherKey]) || this.weather.name;
   }
 
   setDayNight(on) {

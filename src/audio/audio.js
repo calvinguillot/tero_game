@@ -277,19 +277,27 @@ export class AudioEngine {
     this.set(this.amb.gain, s.rain ? AMB_VOL * (this.duck ? 0.35 : 1) : 0, 0.2);
     if (!this.ready || !world) return;
     const sky = world.sky;
-    if (s.rain) this.ambience(dt, sky);
+    // Snow where you're walking (around the lower middle of the street).
+    const snowy = world.locAt(150).precip === 'snow';
+    if (s.rain) this.ambience(dt, sky, snowy);
     this.playMusic(sky);
   }
 
-  ambience(dt, sky) {
+  ambience(dt, sky, snowy) {
     const rain = sky.p.rain;
-    // The wash only comes in for real rain; the roar only for storms.
-    this.set(this.washG.gain, clamp(rain - 0.5, 0, 1.7) * 0.09);
-    this.set(this.roarG.gain, clamp(rain - 1.2, 0, 1) * 0.3);
+    if (snowy) {
+      // Snow makes no patter: only a soft, low hush that thickens as it falls.
+      this.set(this.washG.gain, clamp(rain, 0, 2) * 0.035, 1);
+      this.set(this.roarG.gain, clamp(rain - 1.2, 0, 1) * 0.08, 1);
+    } else {
+      // The wash only comes in for real rain; the roar only for storms.
+      this.set(this.washG.gain, clamp(rain - 0.5, 0, 1.7) * 0.09);
+      this.set(this.roarG.gain, clamp(rain - 1.2, 0, 1) * 0.3);
+    }
     const wind = Math.abs(sky.wind) / 55;
     this.set(this.windG.gain, wind * 0.55 + sky.p.wind * 0.05, 0.25);
     this.set(this.windF.frequency, 380 + wind * 600 + Math.sin(sky.age * 0.7) * 120, 0.3);
-    this.rainDrops(dt, rain);
+    if (!snowy) this.rainDrops(dt, rain);
 
     // Crickets on dry-ish nights, birds on bright days.
     if ((this.chirpT -= dt) <= 0) {
