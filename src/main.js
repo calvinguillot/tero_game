@@ -80,9 +80,13 @@ function frame(now) {
   // Only drop unconsumed presses once a step has had a chance to see them.
   if (steps) game.input.endFrame();
   // Rain, wind and music follow whatever street is on screen.
+  const world = game.scene.world ?? game.backdrop.world;
   audio.duck = !!game.scene.paused;
   audio.rush = game.scene.rushT > 0 && !game.scene.demo;
-  audio.update(steps * STEP, game.scene.world ?? game.backdrop.world);
+  audio.update(steps * STEP, world);
+  // Draw the street where it is right now, not where the last step left it:
+  // the time left over in `acc` moves the view ahead by up to one step.
+  world.lead = game.wipe || game.scene.paused || game.scene.freeze > 0 ? 0 : world.speed * acc;
   game.scene.draw(display.ctx, display.layout);
   if (game.wipe) {
     const t = game.wipe.t;

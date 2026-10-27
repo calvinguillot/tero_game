@@ -28,8 +28,9 @@ export function drawStreet(ctx, world, umbrellas, { hidden = null, overlay = nul
   world.decor.drawSide(ctx, false);
   world.animals.drawGround(ctx);
   const sorted = [...umbrellas].sort((a, b) => a.y - b.y);
-  for (const u of sorted) drawShadow(ctx, u, world.locAt(u.y).shadow);
-  for (const u of sorted) if (u !== hidden) drawUmbrella(ctx, u);
+  const row = (u) => (u.rides ? world.sy : Math.round);
+  for (const u of sorted) drawShadow(ctx, u, world.locAt(u.y).shadow, row(u));
+  for (const u of sorted) if (u !== hidden) drawUmbrella(ctx, u, row(u));
   world.decor.drawSide(ctx, true);
   world.decor.drawOverhead(ctx);
   world.animals.drawAir(ctx);

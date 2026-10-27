@@ -4,7 +4,7 @@ import { drawHud } from '../ui/hud.js';
 import { navigate, plate, menuItem, hint } from '../ui/menu.js';
 import { inPlayfield } from './street.js';
 import { menuHud, heroUmbrella } from './backdrop.js';
-import { PlayScene } from './play.js';
+import { SetupScene } from './setup.js';
 import { SettingsScene } from './settings.js';
 import { GuideScene } from './guide.js';
 import { ScoresScene } from './scores.js';
@@ -12,7 +12,7 @@ import { SplashScene } from './splash.js';
 import { CreditsScene } from './credits.js';
 
 const ITEMS = [
-  ['PLAY', (g) => new PlayScene(g)],
+  ['PLAY', (g) => new SetupScene(g)],
   ['SETTINGS', (g) => new SettingsScene(g)],
   ['HOW TO PLAY', (g) => new GuideScene(g)],
   ['HIGH SCORES', (g) => new ScoresScene(g)],

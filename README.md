@@ -68,7 +68,7 @@ src/
   render/             Low-res display, palettes, pixel buffer, umbrella and text sprites, logo
   world/              The street: rain, water, zones and walls, props, animals, sky and weather
   game/               Player, walkers, force field, collisions, difficulty
-  scenes/             Splash, menu, settings, guide, scores, credits, play, shared street drawing
+  scenes/             Splash, menu, run setup, settings, guide, scores, credits, play, shared street drawing
   ui/                 HUD panels, arcade stick and button, menu helpers
   audio/              Web Audio synth: effects, ambience, music
 refs/                 Original concept screenshots
@@ -78,9 +78,9 @@ refs/                 Original concept screenshots
 
 ### The loop and scenes
 
-`main.js` runs a fixed-timestep loop. Each animation frame adds the elapsed time to an accumulator, which is drained in steps of 1/60 s by calling `scene.update(1/60)`. The scene is then drawn once. Because the simulation step is fixed, speeds stay the same on 60 Hz and 144 Hz screens, and the game won't spiral if the tab stutters (frame time is capped at 0.1 s).
+`main.js` runs a fixed-timestep loop. Each animation frame adds the elapsed time to an accumulator, which is drained in steps of 1/60 s by calling `scene.update(1/60)`. The scene is then drawn once. Because the simulation step is fixed, speeds stay the same on 60 Hz and 144 Hz screens, and the game won't spiral if the tab stutters (frame time is capped at 0.1 s). The time left in the accumulator also sets the street's **lead** (`speed × leftover`), so the street is drawn where it is at that moment rather than where the last step left it. This keeps scrolling smooth when frames and steps don't line up, such as on high-refresh screens.
 
-A **scene** is any object with `update(dt)` and `draw(ctx, layout)`; the game has one each for splash, menu, settings, guide, scores, credits and play. After 12 idle seconds on the splash screen, the play scene starts in **demo mode**: an `Autopilot` (`game/autopilot.js`) stands in for the input. Ten times a second it picks the spot with the most room among the walkers coming down, and it fires the force field when something is about to hit. The demo plays silently, never touches the high scores, and returns to the title after 30 seconds or on any key. `game.go(scene)` switches scenes behind a curtain of falling rain: columns of background color drop down, the scene swaps while the screen is covered, and the columns lift away.
+A **scene** is any object with `update(dt)` and `draw(ctx, layout)`; the game has one each for splash, menu, run setup, settings, guide, scores, credits and play. PLAY opens the **run setup** screen (umbrella color, style and level, with a live preview); START is selected on arrival, and the choices are saved for next time. Retrying from the pause menu or the game-over screen skips it. After 12 idle seconds on the splash screen, the play scene starts in **demo mode**: an `Autopilot` (`game/autopilot.js`) stands in for the input. Ten times a second it picks the spot with the most room among the walkers coming down, and it fires the force field when something is about to hit. The demo plays silently, never touches the high scores, and returns to the title after 30 seconds or on any key. `game.go(scene)` switches scenes behind a curtain of falling rain: columns of background color drop down, the scene swaps while the screen is covered, and the columns lift away.
 
 **Input** keeps two sets: `down` (keys held right now) and `hits` (one-shot presses that a scene consumes with `input.hit('confirm')`). Presses are only cleared after a simulation step has run, so a quick tap is never lost between frames. Pointer events go through `zoneAt()`, which says whether a touch landed on the stick, the force field button or the pause key. Dragging on the stick gives an analog direction; any other tap counts as "confirm" and is also kept as a position, so menus can tell which option was tapped.
 
@@ -113,10 +113,17 @@ All graphics are generated at startup and cached as small canvases.
 
 The street scrolls down as you walk up it. Everything that lies on the ground (ripples, puddles, props, animals, walkers) moves down by `speed × dt` each step.
 
-- **Walls** are 12-pixel-wide tiles, one tile set per location: brick, hedge, shop awnings (three color variants), and a harbor rail with canal water. Tiles are built for the left wall and mirrored for the right. They're drawn in a column starting at `scrollY % tileHeight`, so the column scrolls smoothly without ever drawing off-grid. Each tile's variant is chosen from its position in the world rather than on screen, so an awning keeps its color as it scrolls by.
+Positions are fractional, but pixels are not. If each object rounded its own `y`, objects spawned at different moments would step to the next pixel on different frames from the pavement, and layers would seem to slide against each other by a pixel. So everything that scrolls is placed through one helper, `world.sy(y)`. It rounds the object's offset from the street and adds the pavement's own pixel row, so everything steps on the same frame. The only things meant to move at other speeds are the far rain layer and the fireflies.
+
+- **Walls** are 12-pixel-wide tiles, one tile set per location: brick, hedge, shop awnings (three color variants), and a harbor rail with canal water. Tiles are built for the left wall and mirrored for the right. They're drawn in a column starting at the pavement's pixel row modulo the tile height, so the column scrolls smoothly without ever drawing off-grid. Each tile's variant is chosen from its position in the world rather than on screen, so an awning keeps its color as it scrolls by.
 - **Ground patterns** (market paving, harbor planks) are lines drawn at scroll-relative offsets, with staggered seams on the planks.
 - **Zones**: the street is a stack of location bands. A new location enters at the top behind a crosswalk and scrolls down. Each band is clipped and drawn with its own ground, pattern and walls, and anything that needs a color (ripples, puddles, shadows) asks `locAt(y)` which location it's in.
-- **Props** are spawned by distance traveled, not time, from the location at the top of the screen. Side props (bushes, lamps, crates, mushrooms, logs, trees) hug the walls; floor details (drains, manholes, cobbles, leaves, mud) sit on the ground. **Overhead** pieces (stone or timber bridges, flag bunting, arching branches) cross the street above the umbrellas. Big tree crowns, bridges and branches fade to see-through while you are under them, keep the ground beneath them dry, and cast shadows. Trees drip ripples under their crowns and drains gurgle.
+- **Props** are spawned by distance traveled, not time, from the location at the top of the screen. Side props (bushes, lamps, crates, mushrooms, logs, trees) hug the walls; floor details (drains, manholes, cobbles, leaves, mud) sit on the ground. **Overhead** pieces (stone or timber bridges, flag bunting, arching branches) cross the street above the umbrellas. Trees, bridges and branches fade smoothly to see-through while you are under them, keep the ground beneath them dry, and cast shadows. Trees drip ripples under their leaves and drains gurgle.
+- **Trees** are built procedurally, a few variants of each kind:
+  - **Broadleaf:** a trunk leaning toward the street forks into branches and twigs. Each one ends in a lumpy clump of leaves (dark underside, lighter top-left, a highlight), with gaps where the bark and the street show through.
+  - **By place:** the park grows green, blossom and autumn trees; the forest grows tiered firs and dark broadleaves.
+  - **Boughs:** the overhead branches are long boughs with clumps strung along them.
+  - **Leaf mask:** each tree keeps a mask of its leaf pixels, so rain only stops where there are leaves, and shadows are dappled patches under the clumps.
 
 ### Draw order
 

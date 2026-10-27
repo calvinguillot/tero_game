@@ -1,7 +1,5 @@
-import { PAL, PLAYER_COLORS } from '../render/palette.js';
-import { STYLES, STYLE_KEYS } from '../render/umbrella.js';
+import { PAL } from '../render/palette.js';
 import { drawText } from '../render/font.js';
-import { DIFFICULTY, DIFFICULTY_KEYS } from '../game/difficulty.js';
 import { saveData } from '../core/storage.js';
 import { drawHud } from '../ui/hud.js';
 import { navigate, plate, hint } from '../ui/menu.js';
@@ -9,16 +7,8 @@ import { inPlayfield } from './street.js';
 import { menuHud, heroUmbrella } from './backdrop.js';
 import { MenuScene } from './menu.js';
 
-const LEVEL_HELP = {
-  easy: ['SLOWER CROWD, SOFTER HITBOX.', 'FIELD RECHARGES IN 8 S.'],
-  normal: ['THE INTENDED GAME.', 'FIELD RECHARGES IN 12 S.'],
-  hard: ['FAST CROWD, TRICKY WALKERS', 'SOONER. FIELD: 16 S.'],
-};
-
+// Umbrella colour, style and level are picked before each run (SetupScene).
 const ROWS = [
-  { key: 'color', label: 'COLOR', list: PLAYER_COLORS, show: (v) => v, help: () => ['YOUR UMBRELLA COLOR.', 'THE STICK AND BUTTON MATCH.'] },
-  { key: 'style', label: 'STYLE', list: STYLE_KEYS, show: (v) => STYLES[v].name, help: () => ['SHAPE AND PATTERN OF', 'YOUR UMBRELLA.'] },
-  { key: 'difficulty', label: 'LEVEL', list: DIFFICULTY_KEYS, show: (v) => DIFFICULTY[v].name, help: (v) => LEVEL_HELP[v] },
   { key: 'dayNight', label: 'DAY/NIGHT', list: [true, false], show: (v) => (v ? 'ON' : 'OFF'), help: () => ['THE DAY PASSES AS YOU PLAY.', 'OFF: ALWAYS AFTERNOON.'] },
   { key: 'fx', label: 'EFFECTS', list: [true, false], show: (v) => (v ? 'FULL' : 'LOW'), help: () => ['PUDDLE REFLECTIONS, DRIPS', 'AND SPRAY. LOW IS LIGHTER.'] },
   { key: 'shake', label: 'SHAKE', list: [true, false], show: (v) => (v ? 'ON' : 'OFF'), help: () => ['SCREEN SHAKE ON HITS', 'AND FORCE FIELD BURSTS.'] },
@@ -28,8 +18,8 @@ const ROWS = [
   { key: 'rain', label: 'RAIN', list: [true, false], show: (v) => (v ? 'ON' : 'OFF'), help: () => ['RAIN, WIND, THUNDER,', 'BIRDS AND CRICKETS.'] },
   { key: null, label: 'BACK', help: () => ['SETTINGS SAVE AUTOMATICALLY.', ''] },
 ];
-const ROW_Y = 68;
-const ROW_H = 10;
+const ROW_Y = 84;
+const ROW_H = 11;
 
 export class SettingsScene {
   constructor(game) {
@@ -46,8 +36,6 @@ export class SettingsScene {
     if (!row.key) return;
     const s = this.game.data.settings;
     s[row.key] = row.list[(row.list.indexOf(s[row.key]) + dir + row.list.length) % row.list.length];
-    this.hero.color = s.color;
-    this.hero.style = s.style;
     this.changeT = 0.35;
     saveData(this.game.data);
     this.game.audio.menuMove();
@@ -75,7 +63,7 @@ export class SettingsScene {
     }
     if (input.hit('pause')) return this.back();
 
-    // Changing colour or style gives the preview a close-and-open twirl.
+    // Any change gives the umbrella a close-and-open twirl.
     this.changeT = Math.max(0, this.changeT - dt);
     const twirl = this.changeT > 0 ? Math.sin((1 - this.changeT / 0.35) * Math.PI) : 0;
     this.hero.open = 1 - twirl * 0.6;

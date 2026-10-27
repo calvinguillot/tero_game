@@ -25,6 +25,7 @@ export class Npc {
   constructor(type, x, y, diff = { sway: 1, npcSpeed: 1 }) {
     const T = NPC_TYPES[type];
     this.type = type;
+    this.rides = true; // carried down by the street (drawn through World.sy)
     this.x = x;
     this.baseX = x;
     this.y = y;

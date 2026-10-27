@@ -158,13 +158,13 @@ class Animal {
     return this.x < GROUND_L - 24 || this.x > GROUND_R + 24 || this.y > PF_H + 12 || this.y < -40;
   }
 
-  draw(ctx) {
+  draw(ctx, sy) {
     const k = KINDS[this.kind];
     const flip = this.dir < 0;
     let cv;
     if (this.state === 'fly') cv = sprite(this.kind, k.fly, Math.floor(this.t * 10) % 2, flip, true);
     else cv = sprite(this.kind, k.frames, Math.floor(this.t * (k.animRate || 6)) % k.frames.length, flip);
-    ctx.drawImage(cv, Math.round(this.x - cv.width / 2), Math.round(this.y - cv.height - this.z));
+    ctx.drawImage(cv, Math.round(this.x - cv.width / 2), sy(this.y - cv.height - this.z));
   }
 }
 
@@ -212,10 +212,10 @@ export class Animals {
   }
 
   drawGround(ctx) {
-    for (const a of this.list) if (a.state !== 'fly') a.draw(ctx);
+    for (const a of this.list) if (a.state !== 'fly') a.draw(ctx, this.world.sy);
   }
 
   drawAir(ctx) {
-    for (const a of this.list) if (a.state === 'fly') a.draw(ctx);
+    for (const a of this.list) if (a.state === 'fly') a.draw(ctx, this.world.sy);
   }
 }

@@ -203,28 +203,30 @@ function white(cv) {
 
 // Umbrella objects carry x, y (rim centre), r, color, style, tilt, open, inv,
 // handle, bobY, and optionally flashT (white flash) and groundY (for floaters).
-export function drawUmbrella(ctx, u) {
+// `row` turns a y into a screen row: World.sy for umbrellas the street carries
+// along (u.rides), so they step together with the pavement.
+export function drawUmbrella(ctx, u, row = Math.round) {
   const s = umbrellaSprite(u.color, u.r, u.tilt, u.open, u.inv, u.handle, u.style, u.pitch);
   const cv = u.flashT > 0 ? white(s.canvas) : s.canvas;
-  ctx.drawImage(cv, Math.round(u.x) - s.ax, Math.round(u.y + (u.bobY || 0)) - s.ay);
+  ctx.drawImage(cv, Math.round(u.x) - s.ax, row(u.y + (u.bobY || 0)) - s.ay);
 }
 
 // Upside-down copy mirrored about the ground under the umbrella.
-export function drawReflection(ctx, u) {
+export function drawReflection(ctx, u, row = Math.round) {
   const s = umbrellaSprite(u.color, u.r, u.tilt, u.open, u.inv, u.handle, u.style, u.pitch);
-  const gy = Math.round(u.groundY ?? u.y + u.r * 0.95);
+  const gy = row(u.groundY ?? u.y + u.r * 0.95);
   ctx.save();
   ctx.translate(0, gy * 2);
   ctx.scale(1, -1);
-  ctx.drawImage(s.canvas, Math.round(u.x) - s.ax, Math.round(u.y + (u.bobY || 0)) - s.ay);
+  ctx.drawImage(s.canvas, Math.round(u.x) - s.ax, row(u.y + (u.bobY || 0)) - s.ay);
   ctx.restore();
 }
 
-export function drawShadow(ctx, u, color = PAL.shadow) {
+export function drawShadow(ctx, u, color = PAL.shadow, row = Math.round) {
   const rx = Math.max(2, Math.round(u.r * 0.8 * (0.4 + 0.6 * u.open)));
   const ry = Math.max(1, Math.round(u.r * 0.3));
   const cv = ellipseSprite(rx, ry, color, true);
-  ctx.drawImage(cv, Math.round(u.x + 3) - rx, Math.round(u.y + u.r * 0.95) - ry);
+  ctx.drawImage(cv, Math.round(u.x + 3) - rx, row(u.y + u.r * 0.95) - ry);
 }
 
 // Whether a raindrop landing at (x, y) hits this umbrella's canopy.

@@ -31,6 +31,13 @@ export class World {
     this.refl = null;
     this.t = 0;
     this.scrollY = 0;
+    // How far the view runs ahead of the last simulation step (set each
+    // frame), so scrolling stays smooth when frames and steps don't line up.
+    this.lead = 0;
+    // Screen row for something riding the street at `y`. Everything that
+    // scrolls is placed through here, so it moves on the same frame as the
+    // pavement instead of rounding on its own schedule.
+    this.sy = (y) => Math.round(y - this.scrollY) + this.viewY;
     this.speed = speed;
     this.rainRate = rainRate;
     this.rainAcc = 0;
@@ -52,6 +59,11 @@ export class World {
   locAt(y) {
     for (const z of this.zones) if (y <= z.b) return LOCATIONS[z.loc];
     return LOCATIONS[this.zones[this.zones.length - 1].loc];
+  }
+
+  // The pavement's own pixel offset.
+  get viewY() {
+    return Math.floor(this.scrollY + this.lead);
   }
 
   get topLocation() {
@@ -318,8 +330,8 @@ export class World {
   // Street surface for every visible zone, then puddles, ground details and crosswalks.
   drawGround(ctx) {
     for (let i = 0; i < this.zones.length; i++) {
-      const top = Math.max(0, i === 0 ? 0 : this.zones[i - 1].b);
-      const bottom = Math.min(PF_H, this.zones[i].b);
+      const top = Math.max(0, i === 0 ? 0 : this.sy(this.zones[i - 1].b));
+      const bottom = Math.min(PF_H, this.zones[i].b === Infinity ? PF_H : this.sy(this.zones[i].b));
       if (bottom <= top) continue;
       const loc = LOCATIONS[this.zones[i].loc];
       ctx.save();
@@ -329,12 +341,12 @@ export class World {
       ctx.fillStyle = loc.ground;
       ctx.fillRect(0, top, PF_W, bottom - top);
       this.drawPattern(ctx, loc, top, bottom);
-      drawWalls(ctx, this.scrollY, loc.wall, top, bottom);
+      drawWalls(ctx, this.viewY, loc.wall, top, bottom);
       ctx.restore();
     }
     this.drawPuddles(ctx);
     this.decor.drawFloor(ctx);
-    for (let i = 0; i < this.zones.length - 1; i++) this.drawCrosswalk(ctx, Math.round(this.zones[i].b));
+    for (let i = 0; i < this.zones.length - 1; i++) this.drawCrosswalk(ctx, this.sy(this.zones[i].b));
   }
 
   // Puddles mirror the umbrellas walking past them: the puddles are drawn
@@ -354,12 +366,12 @@ export class World {
     }
     for (const p of this.puddles) {
       const { rx, ry } = this.puddleSize(p);
-      target.drawImage(ellipseSprite(rx, ry, this.locAt(p.y).puddle, true), Math.round(p.x) - rx, Math.round(p.y) - ry);
+      target.drawImage(ellipseSprite(rx, ry, this.locAt(p.y).puddle, true), Math.round(p.x) - rx, this.sy(p.y) - ry);
     }
     if (!this.lowFx) {
       target.globalCompositeOperation = 'source-atop';
       target.globalAlpha = 0.35;
-      for (const u of this.umbrellas) drawReflection(target, u);
+      for (const u of this.umbrellas) drawReflection(target, u, u.rides ? this.sy : Math.round);
       ctx.drawImage(this.refl, 0, 0);
     }
     // A glint along the far edge of each puddle.
@@ -367,7 +379,7 @@ export class World {
       const { rx, ry } = this.puddleSize(p);
       const ring = ellipseSprite(rx, ry, this.locAt(p.y).ripple[2], false);
       const h = Math.ceil(ry * 0.6);
-      ctx.drawImage(ring, 0, 0, ring.width, h, Math.round(p.x) - rx, Math.round(p.y) - ry, ring.width, h);
+      ctx.drawImage(ring, 0, 0, ring.width, h, Math.round(p.x) - rx, this.sy(p.y) - ry, ring.width, h);
     }
   }
 
@@ -379,25 +391,26 @@ export class World {
     ctx.globalCompositeOperation = 'lighter';
     for (const l of this.decor.lampHeads()) {
       ctx.globalAlpha = night * 0.8;
-      const pool = (rx, ry) => ctx.drawImage(ellipseSprite(rx, ry, '#30230f', true), Math.round(l.poolX) - rx, Math.round(l.groundY) - ry);
+      const pool = (rx, ry) => ctx.drawImage(ellipseSprite(rx, ry, '#30230f', true), Math.round(l.poolX) - rx, this.sy(l.groundY) - ry);
       pool(24, 10);
       pool(15, 6);
       pool(7, 3);
-      ctx.drawImage(ellipseSprite(5, 3, '#6a5220', true), Math.round(l.x) - 5, Math.round(l.y) - 3);
+      ctx.drawImage(ellipseSprite(5, 3, '#6a5220', true), Math.round(l.x) - 5, this.sy(l.y) - 3);
       ctx.fillStyle = '#ffe9a0';
-      ctx.fillRect(Math.round(l.x) - 1, Math.round(l.y), 3, 1);
+      ctx.fillRect(Math.round(l.x) - 1, this.sy(l.y), 3, 1);
     }
     // Bunting bulbs.
     for (const b of this.decor.bulbs()) {
+      const y = this.sy(b.y);
       ctx.globalAlpha = night;
-      ctx.drawImage(ellipseSprite(3, 2, '#5a4418', true), b.x - 3, b.y - 2);
+      ctx.drawImage(ellipseSprite(3, 2, '#5a4418', true), b.x - 3, y - 2);
       ctx.fillStyle = '#fff2c0';
-      ctx.fillRect(b.x, b.y, 1, 1);
+      ctx.fillRect(b.x, y, 1, 1);
     }
     // Fireflies, mostly in the park and the forest.
     ctx.fillStyle = '#e8ff8a';
     for (let i = 0; i < 12; i++) {
-      const y = ((i * 71 + this.scrollY * 0.6 + Math.cos(this.t * 0.5 + i * 2) * 10) % (PF_H + 20)) - 10;
+      const y = ((i * 71 + (this.scrollY + this.lead) * 0.6 + Math.cos(this.t * 0.5 + i * 2) * 10) % (PF_H + 20)) - 10;
       const where = this.locAt(y).key;
       if (i >= 4 && where !== 'park' && where !== 'forest') continue;
       if (Math.sin(this.t * 2.5 + i * 1.7) < 0.2) continue;
@@ -418,7 +431,7 @@ export class World {
   drawPattern(ctx, loc, top, bottom) {
     if (loc.pattern === 'none') return;
     ctx.fillStyle = loc.line;
-    const s = Math.floor(this.scrollY);
+    const s = this.viewY;
     if (loc.pattern === 'tiles') {
       for (let y = (s % 16) - 16; y < bottom; y += 16) ctx.fillRect(GROUND_L, y, GROUND_R - GROUND_L, 1);
       for (let x = GROUND_L + 26; x < GROUND_R; x += 26) ctx.fillRect(x, top, 1, bottom - top);
@@ -450,10 +463,10 @@ export class World {
         const rx = Math.max(1, Math.round(1 + (r.maxR - 1) * e));
         const ry = Math.max(1, Math.round(rx * 0.45));
         const color = t < 0.4 ? pal[0] : t < 0.75 ? pal[1] : pal[2];
-        ctx.drawImage(ellipseSprite(rx, ry, color, false), Math.round(r.x) - rx, Math.round(r.y) - ry);
+        ctx.drawImage(ellipseSprite(rx, ry, color, false), Math.round(r.x) - rx, this.sy(r.y) - ry);
         if (i === 0 && t < 0.25) {
           ctx.fillStyle = pal[0];
-          ctx.fillRect(Math.round(r.x) - 1, Math.round(r.y), 3, 1);
+          ctx.fillRect(Math.round(r.x) - 1, this.sy(r.y), 3, 1);
         }
       }
     }
@@ -464,11 +477,11 @@ export class World {
     for (const p of this.particles) {
       if (p.top !== top) continue;
       ctx.fillStyle = p.color;
-      ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
+      ctx.fillRect(Math.round(p.x), this.sy(p.y), 1, 1);
     }
     if (top) {
       ctx.fillStyle = PAL.rainTip;
-      for (const d of this.drips) ctx.fillRect(Math.round(d.x), Math.round(d.y), 1, 2);
+      for (const d of this.drips) ctx.fillRect(Math.round(d.x), this.sy(d.y), 1, 2);
     }
   }
 
@@ -478,16 +491,16 @@ export class World {
     const streak = (d, from, to) => {
       const slope = drift / d.speed;
       if (Math.abs(slope) < 0.08) {
-        ctx.fillRect(Math.round(d.x), Math.floor(d.y) - to, 1, to - from);
+        ctx.fillRect(Math.round(d.x), this.sy(d.y) - to, 1, to - from);
         return;
       }
-      for (let i = from; i < to; i++) ctx.fillRect(Math.round(d.x - slope * i), Math.floor(d.y) - i - 1, 1, 1);
+      for (let i = from; i < to; i++) ctx.fillRect(Math.round(d.x - slope * i), this.sy(d.y) - i - 1, 1, 1);
     };
     ctx.fillStyle = PAL.rainFar;
     for (const d of this.drops) if (d.y >= 0 && d.far) streak(d, 0, d.len);
     ctx.fillStyle = PAL.rain;
     for (const d of this.drops) if (d.y >= 0 && !d.far) streak(d, 1, d.len);
     ctx.fillStyle = PAL.rainTip;
-    for (const d of this.drops) if (d.y >= 0 && !d.far) ctx.fillRect(Math.round(d.x), Math.floor(d.y) - 1, 1, 1);
+    for (const d of this.drops) if (d.y >= 0 && !d.far) ctx.fillRect(Math.round(d.x), this.sy(d.y) - 1, 1, 1);
   }
 }

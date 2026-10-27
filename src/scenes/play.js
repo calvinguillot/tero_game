@@ -584,7 +584,8 @@ export class PlayScene {
             // "!" over walkers about to make a move.
             for (const n of this.npcs) {
               if (n.alert && Math.floor(this.t * 10) % 2 === 0) {
-                drawText(ctx, "!", n.x, n.y - n.r * 1.4 - 8, "#ffffff", {
+                const y = this.world.sy(n.y - n.r * 1.4 - 8);
+                drawText(ctx, "!", n.x, y, "#ffffff", {
                   align: "center",
                   shadow: PAL.textShadow,
                 });
