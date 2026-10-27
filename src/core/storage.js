@@ -2,7 +2,7 @@ const KEY = 'rainyday.v1';
 
 const DEFAULTS = {
   version: 1,
-  settings: { color: 'mint', style: 'classic', difficulty: 'normal', initials: 'AAA', sound: true, music: true, rain: true, fx: true, shake: true, flash: true, dayNight: true },
+  settings: { mode: 'arcade', color: 'mint', style: 'classic', difficulty: 'normal', initials: 'AAA', sound: true, music: true, rain: true, fx: true, shake: true, flash: true, dayNight: true },
   highScores: { arcade: { easy: [], normal: [], hard: [] } },
 };
 

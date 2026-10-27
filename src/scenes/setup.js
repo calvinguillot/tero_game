@@ -9,6 +9,7 @@ import { inPlayfield } from './street.js';
 import { menuHud, heroUmbrella } from './backdrop.js';
 import { MenuScene } from './menu.js';
 import { PlayScene } from './play.js';
+import { ZenScene } from './zen.js';
 
 const LEVEL_HELP = {
   easy: ['SLOWER CROWD, SOFTER HITBOX.', 'FIELD RECHARGES IN 8 S.'],
@@ -16,38 +17,50 @@ const LEVEL_HELP = {
   hard: ['FAST CROWD, TRICKY WALKERS', 'SOONER. FIELD: 16 S.'],
 };
 
+const MODE_HELP = {
+  arcade: ['DODGE THE CROWD, SCORE,', 'CHASE THE HIGH SCORES.'],
+  zen: ['NO SCORE, NO LIVES.', 'JUST WALK IN THE RAIN.'],
+};
+
 const ROWS = [
+  { key: 'mode', label: 'MODE', list: ['arcade', 'zen'], show: (v) => v.toUpperCase(), help: (v) => MODE_HELP[v] },
   { key: 'color', label: 'COLOR', list: PLAYER_COLORS, show: (v) => v.toUpperCase(), help: () => ['YOUR UMBRELLA COLOR.', 'THE STICK AND BUTTON MATCH.'] },
   { key: 'style', label: 'STYLE', list: STYLE_KEYS, show: (v) => STYLES[v].name, help: () => ['SHAPE AND PATTERN OF', 'YOUR UMBRELLA.'] },
   { key: 'difficulty', label: 'LEVEL', list: DIFFICULTY_KEYS, show: (v) => DIFFICULTY[v].name, help: (v) => LEVEL_HELP[v] },
   { key: null, label: 'START', help: () => ['CHOICES ARE KEPT FOR', 'THE NEXT RUN.'] },
 ];
-const START = ROWS.length - 1;
-const ROW_Y = 128;
-const ROW_H = 13;
-const START_Y = 174;
+const ROW_Y = 118;
+const ROW_H = 12;
+const START_Y = 170;
 
-// Between PLAY and the run: pick your umbrella and the level, with a live
-// preview. Choices are saved, and START is selected on arrival so a returning
-// player can go straight in.
+// Between PLAY and the run: pick the mode, your umbrella and the level, with a
+// live preview. Zen has no levels, so LEVEL is hidden there. Choices are
+// saved, and START is selected on arrival so a returning player can go
+// straight in.
 export class SetupScene {
   constructor(game) {
     this.game = game;
     this.bd = game.backdrop;
-    this.sel = START;
+    this.sel = this.rows.length - 1;
     this.t = 0;
     this.changeT = 0;
-    this.hero = heroUmbrella(game, 90, 92, 20);
+    this.hero = heroUmbrella(game, 90, 80, 18);
+  }
+
+  // The rows on show (the last one is START).
+  get rows() {
+    const zen = this.game.data.settings.mode === 'zen';
+    return ROWS.filter((r) => !(zen && r.key === 'difficulty'));
   }
 
   change(dir) {
-    const row = ROWS[this.sel];
+    const row = this.rows[this.sel];
     if (!row.key) return;
     const s = this.game.data.settings;
     s[row.key] = row.list[(row.list.indexOf(s[row.key]) + dir + row.list.length) % row.list.length];
     this.hero.color = s.color;
     this.hero.style = s.style;
-    if (row.key !== 'difficulty') this.changeT = 0.35;
+    if (row.key === 'color' || row.key === 'style') this.changeT = 0.35;
     saveData(this.game.data);
     this.game.audio.menuMove();
   }
@@ -57,14 +70,18 @@ export class SetupScene {
     this.t += dt;
     this.bd.update(dt, [this.hero]);
 
-    const rects = ROWS.map((_, i) => (i === START ? { x: 40, y: START_Y - 4, w: 100, h: 18 } : { x: 14, y: ROW_Y + i * ROW_H - 4, w: 152, h: ROW_H }));
+    const start = this.rows.length - 1;
+    const rects = this.rows.map((_, i) => (i === start ? { x: 40, y: START_Y - 4, w: 100, h: 18 } : { x: 14, y: ROW_Y + i * ROW_H - 4, w: 152, h: ROW_H }));
     const prev = this.sel;
     const { sel, act } = navigate(this.game, this.sel, rects);
     this.sel = sel;
     if (input.hit('left')) this.change(-1);
     if (input.hit('right')) this.change(1);
     if (act) {
-      if (sel === START) return this.game.go(new PlayScene(this.game));
+      if (sel === start) {
+        const zen = this.game.data.settings.mode === 'zen';
+        return this.game.go(zen ? new ZenScene(this.game) : new PlayScene(this.game));
+      }
       // Tapping the row you're on steps its value; Space/Enter does too.
       if (sel === prev) this.change(1);
     }
@@ -86,8 +103,10 @@ export class SetupScene {
       this.bd.draw(ctx, [this.hero]);
       drawText(ctx, 'NEW RUN', 90, 14, PAL.text, { scale: 2, shadow: PAL.textShadow, align: 'center' });
       const s = this.game.data.settings;
-      plate(ctx, 14, ROW_Y - 8, 152, START * ROW_H + 4);
-      ROWS.slice(0, START).forEach((row, i) => {
+      const rows = this.rows;
+      const start = rows.length - 1;
+      plate(ctx, 14, ROW_Y - 8, 152, start * ROW_H + 4);
+      rows.slice(0, start).forEach((row, i) => {
         const y = ROW_Y + i * ROW_H;
         const on = i === this.sel;
         const color = on ? PAL.text : PAL.textDim;
@@ -97,8 +116,8 @@ export class SetupScene {
         const v = row.show(s[row.key]);
         drawText(ctx, on ? `< ${v} >` : v, 118, y, color, { ...opt, align: 'center' });
       });
-      menuItem(ctx, 'START', 90, START_Y, this.sel === START, this.t);
-      const help = ROWS[this.sel].help(s[ROWS[this.sel].key]);
+      menuItem(ctx, 'START', 90, START_Y, this.sel === start, this.t);
+      const help = rows[this.sel].help(s[rows[this.sel].key]);
       plate(ctx, 14, 192, 152, 22);
       help.forEach((line, i) => hint(ctx, line, 196 + i * 9));
       hint(ctx, '< >: CHANGE   ESC: BACK', 222);

@@ -199,6 +199,55 @@ const PAGES = [
     },
   },
   {
+    title: 'ZEN',
+    draw(ctx) {
+      lines(ctx, [
+        'PICK ZEN AS THE MODE WHEN',
+        'YOU START A RUN.',
+        '',
+        '!NOTHING TO WIN, NOTHING',
+        '!TO LOSE. JUST WALK.',
+        '',
+        'NO SCORE, NO LIVES, NO FORCE',
+        'FIELD. BUMPING SOMEONE IS',
+        'JUST A WOBBLE.',
+        '',
+        'THE CROWD IS GENTLE, THE DAY',
+        'IS LONGER AND THE WEATHER',
+        'TURNS SLOWER - STORMS TOO.',
+        'RAIN ON YOUR UMBRELLA PLAYS',
+        'SOFT NOTES.',
+        '',
+        'PAUSE AND PICK MAIN MENU TO',
+        'SEE HOW FAR YOU WALKED.',
+      ], 14, 32, 9);
+    },
+  },
+  {
+    title: 'PHOTO',
+    draw(ctx) {
+      lines(ctx, [
+        'PAUSE AND PICK PHOTO (OR',
+        'PRESS C) IN ANY MODE.',
+        '',
+        'THE STREET HOLDS STILL - ONLY',
+        'THE RAIN KEEPS FALLING - AND',
+        'THE PANELS MAKE WAY.',
+        '',
+        '!SPACE OR TAP SAVES A PNG',
+        '!OF THE STREET, 4X BIGGER.',
+        '',
+        'ESC GOES BACK TO THE PAUSE',
+        'MENU.',
+      ], 14, 34);
+      const acc = '#86bcd6';
+      drawKey(ctx, 14, 150, 'C', false, acc);
+      drawText(ctx, 'PHOTO (WHILE PAUSED)', 30, 152, PAL.text, opt);
+      drawKey(ctx, 14, 166, 'SPACE', false, acc, 25);
+      drawText(ctx, 'SAVE', 46, 168, PAL.text, opt);
+    },
+  },
+  {
     title: 'TIPS',
     draw(ctx) {
       lines(ctx, ['- WATCH FOR ! : SOMEONE IS', '  ABOUT TO MOVE.', '', '- NEAR MISSES CHARGE THE', '  FIELD. SQUEEZE THROUGH!', '', '- SAVE THE FIELD FOR', '  TIGHT SPOTS.', '', '- STAY LOW ON THE SCREEN TO', '  SEE THE CROWD COMING.', '', '- PASS ELDERS EARLY.', '', '- NEW TO IT? TRY EASY.'], 14, 34);

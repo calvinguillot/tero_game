@@ -48,6 +48,7 @@ export class World {
     this.puddles = [];
     this.umbrellas = [];
     this.player = null;
+    this.playerDrops = 0; // drops landed on the player's canopy (Zen plays them as notes)
     this.domes = []; // force-field bubbles that keep rain off: { x, y, r }
     for (let i = 0; i < 5; i++) this.puddles.push(this.newPuddle(rand(-20, PF_H)));
     this.decor = new Decor(this);
@@ -196,8 +197,28 @@ export class World {
       this.zones[this.zones.length - 1].b = Infinity;
     }
 
+    this.sky.update(dt);
+    this.stepWater(dt, sc);
+
+    for (const p of this.puddles) {
+      p.y += sc;
+      if (p.y - p.ry > PF_H) Object.assign(p, this.newPuddle(-rand(10, 120)));
+    }
+
+    this.decor?.update(dt, sc);
+    this.animals?.update(dt, sc);
+  }
+
+  takePlayerDrops() {
+    const n = this.playerDrops;
+    this.playerDrops = 0;
+    return n;
+  }
+
+  // Rain, drips, ripples and spray, with the street moving `sc` this step.
+  // Photo mode runs only this (sc = 0): everything holds still but the rain.
+  stepWater(dt, sc) {
     const sky = this.sky;
-    sky.update(dt);
     // Drops drift with the wind; spawn them upwind so the edges stay covered.
     const drift = sky.wind * 0.9;
     const spread = Math.min(60, Math.abs(drift) * 0.6);
@@ -255,14 +276,6 @@ export class World {
         ps.pop();
       }
     }
-
-    for (const p of this.puddles) {
-      p.y += sc;
-      if (p.y - p.ry > PF_H) Object.assign(p, this.newPuddle(-rand(10, 120)));
-    }
-
-    this.decor?.update(dt, sc);
-    this.animals?.update(dt, sc);
   }
 
   // Water runs off the canopy edges and drips to the ground.
@@ -305,6 +318,7 @@ export class World {
     }
     for (const u of this.umbrellas) {
       if (canopyContains(u, x, y)) {
+        if (u === this.player) this.playerDrops++;
         this.splash(x, y, 2, PAL.splash, true, 40);
         return;
       }

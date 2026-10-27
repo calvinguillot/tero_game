@@ -40,13 +40,15 @@ const GUST_SPEED = 55; // px/s
 
 export class Sky {
   // cycle: seconds per full day; autoWeather: change weather by itself;
-  // stormAfter: seconds before storms may appear.
-  constructor({ time = 0.15, cycle = 240, dayNight = true, weather = 'rainy', autoWeather = false, stormAfter = 60 } = {}) {
+  // stormAfter: seconds before storms may appear; pace: multiplies the time
+  // between weather changes (Zen: 2, twice as slow).
+  constructor({ time = 0.15, cycle = 240, dayNight = true, weather = 'rainy', autoWeather = false, stormAfter = 60, pace = 1 } = {}) {
     this.time = dayNight ? time : AFTERNOON;
     this.cycle = cycle;
     this.dayNight = dayNight;
     this.autoWeather = autoWeather;
     this.stormAfter = stormAfter;
+    this.pace = pace;
     this.age = 0;
     this.weatherKey = weather;
     this.from = { ...WEATHER[weather] };
@@ -54,7 +56,7 @@ export class Sky {
     this.blend = 1;
     this.blendTime = TRANSITION;
     this.p = { ...WEATHER[weather] };
-    this.nextWeatherT = rand(...CHANGE_EVERY);
+    this.nextWeatherT = rand(...CHANGE_EVERY) * pace;
     this.hold = false; // pauses automatic changes (during a SUN RUSH)
     this.wind = 0;
     this.gustT = rand(3, 6);
@@ -96,7 +98,7 @@ export class Sky {
     if (this.dayNight) this.time = (this.time + dt / this.cycle) % 1;
 
     if (this.autoWeather && !this.hold && (this.nextWeatherT -= dt) <= 0) {
-      this.nextWeatherT = rand(...CHANGE_EVERY);
+      this.nextWeatherT = rand(...CHANGE_EVERY) * this.pace;
       const w = { ...WEIGHTS, [this.weatherKey]: 0 };
       if (this.age < this.stormAfter) w.stormy = 0;
       this.setWeather(pick(w));

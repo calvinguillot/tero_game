@@ -81,7 +81,7 @@ function frame(now) {
   if (steps) game.input.endFrame();
   // Rain, wind and music follow whatever street is on screen.
   const world = game.scene.world ?? game.backdrop.world;
-  audio.duck = !!game.scene.paused;
+  audio.duck = !!game.scene.paused && !game.scene.photo;
   audio.rush = game.scene.rushT > 0 && !game.scene.demo;
   audio.update(steps * STEP, world);
   // Draw the street where it is right now, not where the last step left it:

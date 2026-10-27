@@ -17,7 +17,7 @@ import { lerp, rand, pick, choice } from "../core/math.js";
 import { PAL, UMBRELLA_COLORS } from "../render/palette.js";
 import { drawText } from "../render/font.js";
 import { ellipseSprite } from "../render/pixels.js";
-import { drawHud } from "../ui/hud.js";
+import { drawHud, drawPhotoHud } from "../ui/hud.js";
 import { navigate, plate, menuItem } from "../ui/menu.js";
 import { InitialsEntry } from "../ui/initials.js";
 import { PF_W, PF_H, GROUND_L, GROUND_R } from "../config.js";
@@ -34,8 +34,9 @@ const MILESTONE = 10; // celebrate every N points
 const NEAR_MISS = 2.0; // squared hitbox distance below which a pass sparkles
 const RUSH_TIME = 5; // seconds (how many CLOSE! start one is per difficulty)
 const RUSH_SPEED = 1.7; // street speed multiplier while rushing
-const PAUSE_ITEMS = ["RESUME", "RESTART", "MAIN MENU"];
+const PAUSE_ITEMS = ["RESUME", "RESTART", "PHOTO", "MAIN MENU"];
 const DAY_LENGTH = 240; // seconds for a full day in arcade
+const PHOTO_SCALE = 4; // saved photos are the playfield at 4x, still crisp
 const TOAST_TIME = 2.6;
 const DEMO_TIME = 30; // seconds of attract-mode play before going back to the title
 const WEATHER_NEWS = {
@@ -52,26 +53,23 @@ export class PlayScene {
   constructor(game, { demo = false } = {}) {
     this.game = game;
     this.demo = demo;
-    const { difficulty, color, style, fx, flash, dayNight } =
-      game.data.settings;
-    this.diffKey = difficulty;
-    this.d = DIFFICULTY[difficulty];
+    const { color, style, fx, flash, dayNight } = game.data.settings;
+    const tune = this.tuning(game.data.settings);
+    this.diffKey = tune.diffKey;
+    this.d = tune.d;
     this.color = color;
     this.style = style;
-    // Every run starts somewhere random: place, time of day and weather (no
-    // storm straight away on Easy). Everything moves on from there.
+    // Every run starts somewhere random: place, time of day and weather.
+    // Everything moves on from there.
     this.startLoc = Math.floor(Math.random() * LOCATION_ORDER.length);
-    const weathers = ["rainy", "drizzle", "hazy", "stormy"];
-    const weather = choice(
-      difficulty === "easy" ? weathers.slice(0, 3) : weathers,
-    );
     const sky = new Sky({
       time: Math.random(),
-      cycle: DAY_LENGTH,
+      cycle: tune.dayLength,
       dayNight,
-      weather,
+      weather: choice(tune.weathers),
       autoWeather: true,
       stormAfter: this.d.stormAfter,
+      pace: tune.weatherPace,
     });
     this.world = new World({
       speed: this.d.speedStart,
@@ -99,7 +97,7 @@ export class PlayScene {
     this.rushT = 0;
     this.rushWeather = null; // weather to go back to after the rush
     this.quietWeather = 0; // weather changes the rush makes itself: no banner
-    this.prevBest = bestScore(game.data, "arcade", difficulty);
+    this.prevBest = bestScore(game.data, "arcade", this.diffKey);
     this.best = this.prevBest; // shown in the HUD, climbs with the score
     this.spawnT = 0.8;
     this.freeze = 0;
@@ -114,6 +112,36 @@ export class PlayScene {
     this.paused = false;
     this.pauseSel = 0;
     this.newBest = false;
+    this.photo = false; // photo mode: everything holds still but the rain
+    this.photoFlash = 0;
+    this.savedT = 0;
+  }
+
+  // How this run is tuned. Zen mode overrides it.
+  tuning({ difficulty }) {
+    const weathers = ["rainy", "drizzle", "hazy", "stormy"];
+    return {
+      diffKey: difficulty,
+      d: DIFFICULTY[difficulty],
+      dayLength: DAY_LENGTH,
+      weatherPace: 1,
+      // No storm straight away on Easy.
+      weathers: difficulty === "easy" ? weathers.slice(0, 3) : weathers,
+    };
+  }
+
+  get pauseItems() {
+    return PAUSE_ITEMS;
+  }
+
+  // Which walker (or pattern) comes next.
+  crowdWeights() {
+    return spawnWeights(this.score, this.d);
+  }
+
+  // MAIN MENU from the pause menu.
+  leave() {
+    this.game.go(new MenuScene(this.game));
   }
 
   // HUD fields.
@@ -171,7 +199,9 @@ export class PlayScene {
       this.paused = false;
       return;
     }
-    const rects = PAUSE_ITEMS.map((_, i) => ({
+    if (input.hit("photo")) return this.startPhoto();
+    const items = this.pauseItems;
+    const rects = items.map((_, i) => ({
       x: 20,
       y: 102 + i * 20 - 4,
       w: 140,
@@ -181,9 +211,63 @@ export class PlayScene {
     this.pauseSel = sel;
     if (!act) return;
     input.hit("action");
-    if (sel === 0) this.paused = false;
-    else if (sel === 1) this.game.go(new PlayScene(this.game));
-    else this.game.go(new MenuScene(this.game));
+    const item = items[sel];
+    if (item === "RESUME") this.paused = false;
+    else if (item === "RESTART") this.game.go(new PlayScene(this.game));
+    else if (item === "PHOTO") this.startPhoto();
+    else this.leave();
+  }
+
+  // Photo mode, from the pause menu: the street holds still (only the rain
+  // keeps falling), the HUD makes way, and Space or a tap saves a PNG.
+  startPhoto() {
+    this.photo = true;
+    this.savedT = 0;
+  }
+
+  updatePhoto(dt) {
+    const { input } = this.game;
+    this.photoFlash = Math.max(0, this.photoFlash - dt);
+    this.savedT = Math.max(0, this.savedT - dt);
+    this.world.stepWater(dt, 0);
+    if (input.hit("pause") || input.hit("photo")) {
+      this.photo = false;
+      return;
+    }
+    if (input.hit("action") || input.hit("confirm")) this.savePhoto();
+    input.takeTap();
+  }
+
+  savePhoto() {
+    const shot = document.createElement("canvas");
+    shot.width = PF_W;
+    shot.height = PF_H;
+    const umbrellas = this.npcs.concat(this.player);
+    drawStreet(shot.getContext("2d"), this.world, umbrellas, {
+      glow: this.player,
+    });
+    const big = document.createElement("canvas");
+    big.width = PF_W * PHOTO_SCALE;
+    big.height = PF_H * PHOTO_SCALE;
+    const ctx = big.getContext("2d");
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(shot, 0, 0, big.width, big.height);
+    // Local time as YYYYMMDD-HHMMSS (the Swedish locale writes ISO-style).
+    const stamp = new Date()
+      .toLocaleString("sv-SE")
+      .replace(/[-:]/g, "")
+      .replace(" ", "-");
+    big.toBlob((blob) => {
+      if (!blob) return;
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `a-rainy-day-${stamp}.png`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    });
+    this.photoFlash = 0.25;
+    this.savedT = 1.6;
+    this.game.audio.shutter();
   }
 
   // Attract mode: any press goes to the menu; it ends by itself after a while.
@@ -206,6 +290,7 @@ export class PlayScene {
     this.t += dt;
 
     if (this.demo && this.updateDemo(dt)) return;
+    if (this.photo) return this.updatePhoto(dt);
     if (this.paused) return this.updatePause();
     if (this.state === "play" && !this.demo && input.hit("pause"))
       return this.pause();
@@ -485,7 +570,7 @@ export class PlayScene {
   }
 
   spawn() {
-    const kind = pick(spawnWeights(this.score, this.d));
+    const kind = pick(this.crowdWeights());
     if (kind === "pair") {
       // Two commuters walking side by side, in step.
       const x = this.freeLane(32);
@@ -567,6 +652,7 @@ export class PlayScene {
   draw(ctx, L) {
     ctx.fillStyle = PAL.bg;
     ctx.fillRect(0, 0, L.w, L.h);
+    if (this.photo) return this.drawPhoto(ctx, L);
     drawHud(ctx, L, this, this.game.input);
 
     const p = this.player;
@@ -617,6 +703,20 @@ export class PlayScene {
     }
     if (this.state === "over" && !this.demo)
       inPlayfield(ctx, L, () => this.drawGameOver(ctx));
+  }
+
+  // Just the street, as the photo will be, with a white flash when it's taken.
+  drawPhoto(ctx, L) {
+    drawPhotoHud(ctx, L, this.savedT > 0, this.color);
+    inPlayfield(ctx, L, () => {
+      drawStreet(ctx, this.world, this.npcs.concat(this.player), {
+        glow: this.player,
+      });
+      if (this.photoFlash > 0) {
+        ctx.fillStyle = `rgba(255, 255, 255, ${this.photoFlash / 0.25})`;
+        ctx.fillRect(0, 0, PF_W, PF_H);
+      }
+    });
   }
 
   // Running in the sun: a pulsing golden aura and ring around the closed umbrella.
@@ -705,11 +805,13 @@ export class PlayScene {
       shadow: PAL.textShadow,
       align: "center",
     });
-    plate(ctx, 14, 92, 152, PAUSE_ITEMS.length * 20 + 8);
-    PAUSE_ITEMS.forEach((label, i) =>
+    const items = this.pauseItems;
+    plate(ctx, 14, 92, 152, items.length * 20 + 8);
+    items.forEach((label, i) =>
       menuItem(ctx, label, 90, 102 + i * 20, i === this.pauseSel, this.t),
     );
-    drawText(ctx, "ESC TO RESUME", 90, 172, PAL.textDim, {
+    const hintY = 112 + items.length * 20;
+    drawText(ctx, "ESC TO RESUME", 90, hintY, PAL.textDim, {
       align: "center",
       shadow: PAL.textShadow,
     });

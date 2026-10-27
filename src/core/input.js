@@ -14,6 +14,7 @@ const KEYMAP = {
   NumpadEnter: 'confirm',
   Escape: 'pause',
   KeyP: 'pause',
+  KeyC: 'photo',
 };
 
 const STICK_RANGE = 14; // buffer pixels of drag for full deflection

@@ -235,6 +235,26 @@ export class AudioEngine {
     this.noise({ f0: 1600, f1: 500, q: 2, dur: 0.12, vol: 0.06 });
   }
 
+  // Zen: a soft knock when two umbrellas brush.
+  bump() {
+    this.tone({ type: 'sine', f0: 330, f1: 250, dur: 0.18, vol: 0.06 });
+    this.noise({ f0: 700, q: 1.2, dur: 0.06, vol: 0.05 });
+  }
+
+  // Photo mode: a camera click.
+  shutter() {
+    this.noise({ type: 'highpass', f0: 3000, dur: 0.03, vol: 0.15 });
+    this.noise({ type: 'highpass', f0: 2200, dur: 0.04, vol: 0.12, at: 0.07 });
+  }
+
+  // Zen: a drop on your umbrella rings a quiet note in the tune's key. It goes
+  // through the music bus, so MUSIC switches it off.
+  rainNote(night) {
+    const scale = night ? SCALES.night : SCALES.day;
+    const f = semis(scale.root, choice(scale.steps) + 12 * (1 + Math.floor(Math.random() * 2)));
+    this.tone({ type: 'sine', f0: f, dur: rand(0.5, 0.9), vol: rand(0.03, 0.05), attack: 0.003, dest: this.music });
+  }
+
   menuMove() {
     this.tone({ f0: 660, dur: 0.03, vol: 0.05 });
   }

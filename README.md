@@ -9,6 +9,8 @@ It runs in the browser using plain JavaScript and the Canvas 2D API. All of the 
 - **Arcade mode**: three lives, a crowd that speeds up as you score, an extra life every 100 points (four at most), and an arcade-style high-score table for each difficulty where you sign your three initials (it also records each run's CLOSE! count). On Hard, puddles and mud slow you down a little.
 - **Force field**: a shockwave that pushes nearby umbrellas away and snaps them shut, and sweeps the water aside. It recharges over time, and near misses (**CLOSE!**) give it a boost.
 - **SUN RUSH**: every 20 CLOSE! near misses (15 on Easy, 25 on Hard), the sun breaks through for five seconds, even at night. Everyone shuts their umbrella, you run with your own umbrella closed and glowing, nothing can hurt you, and every umbrella you pass or bump scores.
+- **Zen mode**: nothing to win and nothing to lose. There's no score, lives, force field or game over, and bumping someone is just a wobble. The crowd keeps Easy's gentle pace with no hurriers, the day is twice as long, and the weather (storms included) changes half as often. Drops on your umbrella play soft notes in the music's key. When you leave, the game tells you how far you walked and through how many places; it isn't saved anywhere.
+- **Photo mode**: in any mode, pause and pick PHOTO (or press C). The street holds still while the rain keeps falling, and Space or a tap saves a PNG of the playfield at 4× size.
 - **Attract mode**: leave the title screen alone and the game plays a demo of itself.
 - **Walker types**: commuters, wanderers, elders, hurriers, kids and pairs, each with its own readable behavior. Some telegraph their moves with a `!` first.
 - **Places**: Old Town, Rainy Park, Deep Forest, Market St and Harbor, each with its own walls, ground, props and animals. Bridges, flag bunting and big branches sometimes cross over the street, and large trees reach over it; they turn see-through when you walk underneath. Each run starts in a random place, at a random time of day and in random weather, and a new place arrives every 25 points.
@@ -53,6 +55,7 @@ Vite is the only dependency, and it's for development only: it serves the ES mod
 | Move | WASD or arrow keys | Drag on the stick side (left panel, or bottom-left on phones) |
 | Force field | Space or Shift | Tap the round button |
 | Pause | Esc or P | The `II` key or the ESC key on screen |
+| Photo mode | C while paused (or PHOTO in the pause menu), then Space to save | PHOTO in the pause menu, then tap to save |
 | Menus | Arrows plus Space or Enter | Tap an option |
 
 Sound starts after your first key press or tap, because browsers require a user gesture before playing audio.
@@ -68,7 +71,7 @@ src/
   render/             Low-res display, palettes, pixel buffer, umbrella and text sprites, logo
   world/              The street: rain, water, zones and walls, props, animals, sky and weather
   game/               Player, walkers, force field, collisions, difficulty
-  scenes/             Splash, menu, run setup, settings, guide, scores, credits, play, shared street drawing
+  scenes/             Splash, menu, run setup, settings, guide, scores, credits, play, zen, shared street drawing
   ui/                 HUD panels, arcade stick and button, menu helpers
   audio/              Web Audio synth: effects, ambience, music
 refs/                 Original concept screenshots
@@ -80,7 +83,18 @@ refs/                 Original concept screenshots
 
 `main.js` runs a fixed-timestep loop. Each animation frame adds the elapsed time to an accumulator, which is drained in steps of 1/60 s by calling `scene.update(1/60)`. The scene is then drawn once. Because the simulation step is fixed, speeds stay the same on 60 Hz and 144 Hz screens, and the game won't spiral if the tab stutters (frame time is capped at 0.1 s). The time left in the accumulator also sets the street's **lead** (`speed × leftover`), so the street is drawn where it is at that moment rather than where the last step left it. This keeps scrolling smooth when frames and steps don't line up, such as on high-refresh screens.
 
-A **scene** is any object with `update(dt)` and `draw(ctx, layout)`; the game has one each for splash, menu, run setup, settings, guide, scores, credits and play. PLAY opens the **run setup** screen (umbrella color, style and level, with a live preview); START is selected on arrival, and the choices are saved for next time. Retrying from the pause menu or the game-over screen skips it. After 12 idle seconds on the splash screen, the play scene starts in **demo mode**: an `Autopilot` (`game/autopilot.js`) stands in for the input. Ten times a second it picks the spot with the most room among the walkers coming down, and it fires the force field when something is about to hit. The demo plays silently, never touches the high scores, and returns to the title after 30 seconds or on any key. `game.go(scene)` switches scenes behind a curtain of falling rain: columns of background color drop down, the scene swaps while the screen is covered, and the columns lift away.
+A **scene** is any object with `update(dt)` and `draw(ctx, layout)`; the game has one each for splash, menu, run setup, settings, guide, scores, credits and play. PLAY opens the **run setup** screen (mode, umbrella color, style and level, with a live preview; Zen hides the level); START is selected on arrival, and the choices are saved for next time. Retrying from the pause menu or the game-over screen skips it.
+
+**Zen** (`scenes/zen.js`) is a subclass of the arcade scene. It overrides only what differs:
+- `tuning()`: a fixed Easy crowd, an 8-minute day, and weather twice as slow (the sky's `pace`).
+- `crowdWeights()`: no hurriers.
+- `checkNpcs()`: bumps wobble instead of costing a life.
+- `fireField()`: does nothing.
+- `leave()`: shows the walk summary.
+
+Places change by distance walked rather than by score. The world counts drops that land on the player's canopy, and the scene turns a few of them into notes (`audio.rainNote`).
+
+**Photo mode** lives in the arcade scene, so every mode has it. While it's on, the scene runs only `world.stepWater(dt, 0)`, the rain, drips, ripples and spray with no scrolling. The panels show only the controls. Saving redraws the street into a playfield-sized canvas, scales it up 4× without smoothing and downloads it as a PNG. After 12 idle seconds on the splash screen, the play scene starts in **demo mode**: an `Autopilot` (`game/autopilot.js`) stands in for the input. Ten times a second it picks the spot with the most room among the walkers coming down, and it fires the force field when something is about to hit. The demo plays silently, never touches the high scores, and returns to the title after 30 seconds or on any key. `game.go(scene)` switches scenes behind a curtain of falling rain: columns of background color drop down, the scene swaps while the screen is covered, and the columns lift away.
 
 **Input** keeps two sets: `down` (keys held right now) and `hits` (one-shot presses that a scene consumes with `input.hit('confirm')`). Presses are only cleared after a simulation step has run, so a quick tap is never lost between frames. Pointer events go through `zoneAt()`, which says whether a touch landed on the stick, the force field button or the pause key. Dragging on the stick gives an analog direction; any other tap counts as "confirm" and is also kept as a position, so menus can tell which option was tapped.
 

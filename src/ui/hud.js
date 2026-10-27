@@ -6,7 +6,7 @@ import { drawJoystick, drawButton, drawChargeBar, drawKey } from './controls.js'
 const RUSH_GOLD = '#ffd27a';
 
 // Arcade-cabinet side panels (desktop) or top/bottom strips (phones).
-// s: { title, score, best, lives, maxLives, color, style, bumpT, lifeLostT,
+// s: { title, zen, score, best, lives, maxLives, color, style, bumpT, lifeLostT,
 //      charge, ready, location, nextAt, level, timeName, weatherName,
 //      rush: { count, every, left }, t }
 
@@ -87,17 +87,22 @@ function landscape(ctx, s, input) {
   const { v, pressed } = controls(input);
   const accent = UMBRELLA_COLORS[s.color].base;
 
-  // Left: score, best, lives, then the stick.
-  if (!s.title) {
-    label(ctx, 'SCORE', 35, 9);
-    score(ctx, s, 35, 18, 3);
-    rushMeter(ctx, s, 35, 37, 48);
-  }
-  label(ctx, 'BEST', 35, 56);
-  drawText(ctx, s.best, 35, 64, PAL.text, { scale: 2, shadow: PAL.textShadow, align: 'center' });
-  if (!s.title) {
-    label(ctx, 'LIVES', 35, 82);
-    lives(ctx, s, 35, 102, 20);
+  // Left: score, best, lives, then the stick. Zen keeps none of that.
+  if (s.zen) {
+    drawText(ctx, 'ZEN', 35, 18, PAL.text, { scale: 3, shadow: PAL.textShadow, align: 'center' });
+    label(ctx, 'JUST WALK', 35, 40);
+  } else {
+    if (!s.title) {
+      label(ctx, 'SCORE', 35, 9);
+      score(ctx, s, 35, 18, 3);
+      rushMeter(ctx, s, 35, 37, 48);
+    }
+    label(ctx, 'BEST', 35, 56);
+    drawText(ctx, s.best, 35, 64, PAL.text, { scale: 2, shadow: PAL.textShadow, align: 'center' });
+    if (!s.title) {
+      label(ctx, 'LIVES', 35, 82);
+      lives(ctx, s, 35, 102, 20);
+    }
   }
   label(ctx, 'MOVE', 35, 150);
   drawJoystick(ctx, 35, 198, v, s.color);
@@ -107,15 +112,17 @@ function landscape(ctx, s, input) {
   label(ctx, 'A RAINY DAY', 285, 9);
   label(ctx, s.location, 285, 22, PAL.text);
   if (s.nextAt != null) label(ctx, `NEXT AT ${s.nextAt}`, 285, 32);
-  label(ctx, s.level, 285, 46);
+  if (s.level) label(ctx, s.level, 285, 46);
   if (s.timeName) {
     label(ctx, s.timeName, 285, 62, PAL.text);
     label(ctx, s.weatherName, 285, 72, s.weatherName === 'STORMY' || s.weatherName === 'SUN RUSH' ? RUSH_GOLD : PAL.text);
   }
-  label(ctx, 'FORCE FIELD', 285, 140);
-  drawButton(ctx, 285, 168, pressed, s.ready, s.color, s.t);
-  drawChargeBar(ctx, 285, 182, 44, s.charge, s.ready, s.color, s.t);
-  label(ctx, s.ready ? 'SPACE!' : 'CHARGING', 285, 190, s.ready ? PAL.text : PAL.textDim);
+  if (!s.zen) {
+    label(ctx, 'FORCE FIELD', 285, 140);
+    drawButton(ctx, 285, 168, pressed, s.ready, s.color, s.t);
+    drawChargeBar(ctx, 285, 182, 44, s.charge, s.ready, s.color, s.t);
+    label(ctx, s.ready ? 'SPACE!' : 'CHARGING', 285, 190, s.ready ? PAL.text : PAL.textDim);
+  }
   label(ctx, 'PAUSE', 285, 204);
   drawKey(ctx, 277, 213, 'ESC', input.down.has('pause'), accent, 17);
 }
@@ -126,20 +133,52 @@ function portrait(ctx, s, input) {
   const { v, pressed } = controls(input);
   const accent = UMBRELLA_COLORS[s.color].base;
 
-  if (!s.title) {
-    score(ctx, s, 8, 8, 2, 'left');
-    lives(ctx, s, 112, 15, 14);
+  if (s.zen) {
+    drawText(ctx, 'ZEN', 8, 8, PAL.text, { scale: 2, shadow: PAL.textShadow });
+    if (s.timeName) drawText(ctx, s.timeName, 40, 10, PAL.textDim);
+  } else {
+    if (!s.title) {
+      score(ctx, s, 8, 8, 2, 'left');
+      lives(ctx, s, 112, 15, 14);
+    }
+    drawText(ctx, `BEST ${s.best}`, s.title ? 90 : 42, 10, PAL.textDim, { align: s.title ? 'center' : 'left' });
   }
-  drawText(ctx, `BEST ${s.best}`, s.title ? 90 : 42, 10, PAL.textDim, { align: s.title ? 'center' : 'left' });
   drawKey(ctx, 160, 7, 'II', false, accent, 11);
 
   drawJoystick(ctx, 38, 308, v, s.color);
-  drawButton(ctx, 142, 302, pressed, s.ready, s.color, s.t);
   label(ctx, s.location, 90, 270, PAL.text);
   if (s.weatherName) label(ctx, s.weatherName, 90, 279);
+  if (s.zen) return;
+  drawButton(ctx, 142, 302, pressed, s.ready, s.color, s.t);
   label(ctx, 'FIELD', 90, 288);
   drawChargeBar(ctx, 90, 296, 30, s.charge, s.ready, s.color, s.t);
   if (s.rush) rushMeter(ctx, s, 90, 305, 40, true);
+}
+
+// Photo mode: plain panels with just what the keys do, and a note once saved.
+export function drawPhotoHud(ctx, L, saved, color) {
+  const accent = UMBRELLA_COLORS[color].light;
+  if (L.name === 'landscape') {
+    panel(ctx, 0, 0, 70, 240);
+    panel(ctx, 250, 0, 70, 240);
+    ctx.fillStyle = PAL.panelEdge;
+    ctx.fillRect(69, 0, 1, 240);
+    ctx.fillRect(250, 0, 1, 240);
+    drawText(ctx, 'PHOTO', 35, 18, PAL.text, { scale: 2, shadow: PAL.textShadow, align: 'center' });
+    label(ctx, 'SPACE OR TAP', 35, 104);
+    label(ctx, 'TO SAVE', 35, 114);
+    if (saved) label(ctx, 'SAVED!', 35, 134, accent);
+    label(ctx, 'ESC', 285, 104);
+    label(ctx, 'TO GO BACK', 285, 114);
+  } else {
+    panel(ctx, 0, 0, 180, 24);
+    panel(ctx, 0, 264, 180, 56);
+    drawText(ctx, 'PHOTO', 8, 8, PAL.text, { scale: 2, shadow: PAL.textShadow });
+    if (saved) drawText(ctx, 'SAVED!', 146, 10, accent, { align: 'right' });
+    drawKey(ctx, 160, 7, 'II', false, UMBRELLA_COLORS[color].base, 11);
+    label(ctx, 'TAP TO SAVE', 90, 284);
+    label(ctx, 'II TO GO BACK', 90, 296);
+  }
 }
 
 // CLOSE! near misses collected towards the next SUN RUSH; during the rush, a
