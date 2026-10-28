@@ -30,7 +30,7 @@ export class DuoScene extends PlayScene {
     super(game);
     this.duo = true;
     const p1 = this.player;
-    const p2 = new Player("love", "classic");
+    const p2 = new Player("love", game.data.settings.style); // red, in your style
     p1.x = 66;
     p2.x = 114;
     for (const [p, tag] of [[p1, "P1"], [p2, "P2"]]) {

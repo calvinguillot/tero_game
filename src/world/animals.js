@@ -186,7 +186,10 @@ class Animal {
         this.z = Math.sin((1 - this.hopping / 0.28) * Math.PI) * 4;
         if (this.hopping <= 0) {
           this.z = 0;
-          world.addRipple(this.x, this.y, 5, 1, 0.6);
+          // Landing: paws in the snow or sand, a ripple anywhere else.
+          const pressed = world.leavePrint(this.x - 1, this.y);
+          if (pressed) world.leavePrint(this.x + 2, this.y);
+          else world.addRipple(this.x, this.y, 5, 1, 0.6);
         }
       } else if ((this.hopT -= dt) <= 0) {
         this.hopping = 0.28;
@@ -195,6 +198,11 @@ class Animal {
       return;
     }
     this.x += this.dir * this.speed * dt;
+    // A line of small prints behind anything walking on snow or sand.
+    if ((this.printT = (this.printT ?? 0) - dt) <= 0) {
+      this.printT = 6 / Math.max(6, this.speed);
+      world.leavePrint(this.x - this.dir * 3, this.y + ((this.printStep = !this.printStep) ? 0 : 2));
+    }
     if (k.trail && (this.trailT -= dt) <= 0) {
       this.trailT = 0.4;
       world.addRipple(this.x - this.dir * 3, this.y, 4, 1, 0.7);

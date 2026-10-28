@@ -261,6 +261,10 @@ const PAGES = [
         '',
         'AT NIGHT THEY SHOW A SMALL',
         'LIGHT; IN FOG, AN OUTLINE.',
+        '',
+        'THE FORCE FIELD SHOVES LIGHT',
+        'THINGS AWAY AND BLOWS SNOW',
+        'PILES AND SANDCASTLES APART.',
       ], 14, 34);
     },
   },

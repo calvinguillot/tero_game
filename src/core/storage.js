@@ -2,9 +2,10 @@ const KEY = 'rainyday.v1';
 
 const DEFAULTS = {
   version: 1,
-  // story: chapters unlocked, best stars and time left per chapter, and
-  // whether the ending has been seen (it unlocks Walk Together in Zen).
-  story: { unlocked: 1, stars: [], best: [], done: false },
+  // story: chapters unlocked, hearts per chapter, records per chapter
+  // ({ time: fastest finish in seconds, closes: most CLOSE! }, finished runs
+  // only), and whether the ending has been seen (it unlocks Walk Together).
+  story: { unlocked: 1, stars: [], records: [], done: false },
   settings: { together: true, mode: 'arcade', color: 'mint', style: 'classic', difficulty: 'normal', initials: 'AAA', sound: true, music: true, rain: true, fx: true, shake: true, flash: true, dayNight: true },
   highScores: { arcade: { easy: [], normal: [], hard: [] } },
 };
@@ -35,6 +36,24 @@ export function saveData(data) {
   } catch {
     // Storage can be unavailable (private mode, blocked site data); the game still runs.
   }
+}
+
+// Settings' "RESET STORY": back to chapter 1, no hearts or records, the ending
+// unseen (so Walk Together locks again). Arcade scores and settings stay.
+export function resetStory(data) {
+  data.story = structuredClone(DEFAULTS.story);
+  saveData(data);
+}
+
+// Settings' "RESET ALL DATA": everything back to defaults. The objects are
+// refilled in place, because the game and the audio hold on to them.
+export function resetAll(data) {
+  const fresh = structuredClone(DEFAULTS);
+  for (const k of Object.keys(data.settings)) delete data.settings[k];
+  Object.assign(data.settings, fresh.settings);
+  data.story = fresh.story;
+  data.highScores = fresh.highScores;
+  saveData(data);
 }
 
 export function bestScore(data, mode, difficulty) {

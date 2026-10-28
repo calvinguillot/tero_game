@@ -12,9 +12,11 @@ import { PF_H, GROUND_L, GROUND_R } from '../config.js';
 
 export const OBSTACLES = {
   minGap: 110, // px of street between patterns, at the very least
+  minGapTime: 1.1, // ... and seconds between them at the current pace (fast streets)
   spread: 300, // extra px between patterns when density is low
   minOpening: 70, // px: the narrowest way through any pattern (about 2.4 umbrellas)
   playerScale: 0.8, // how much of the umbrella's footprint counts for obstacles
+  fieldPush: 180, // px/s the force field gives a 'slide' obstacle of mass 1 at point blank
 };
 
 // ---- Sprites ----------------------------------------------------------------
@@ -22,24 +24,28 @@ export const OBSTACLES = {
 // shape: block (a box seen from above and in front), round (a mound), log
 // (lying across), posts (a row of short posts). c: [outline, side, top,
 // accent]. deco adds the details. lamp: a warning light that glows at night.
+// What the force field does to each: 'slide' (pushed away, heavier ones
+// less: `mass`), 'scatter' (blown apart), or 'fixed' (it only shudders).
+// Outlines are always a darker shade of the object's own colour.
 const KINDS = {
-  planter: { shape: 'block', w: 20, h: 13, top: 6, c: ['#2e3640', '#8c949c', '#b8bfc6', '#3f9a4a'], deco: 'flowers' },
-  barrier: { shape: 'block', w: 26, h: 10, top: 3, c: ['#2e3640', '#e05a4a', '#f4f0e8', '#f4f0e8'], deco: 'stripes', lamp: true },
-  bollards: { shape: 'posts', w: 28, h: 9, c: ['#20283a', '#4a5664', '#8a97a6', '#f2d04a'] },
-  bench: { shape: 'block', w: 24, h: 9, top: 5, c: ['#3a2a1a', '#7a4e22', '#a8743a', '#5a3a1a'], deco: 'planks' },
-  flowerbed: { shape: 'round', w: 24, h: 13, c: ['#1d4a26', '#2c7438', '#4fa04a', '#f4a6c6'], deco: 'flowers' },
-  fountain: { shape: 'round', w: 32, h: 16, c: ['#2e3640', '#8c949c', '#b8bfc6', '#4ab8e0'], deco: 'water' },
-  log: { shape: 'log', w: 36, h: 9, c: ['#2a1c10', '#6a4e30', '#8a6a44', '#c8a070'] },
-  boulder: { shape: 'round', w: 18, h: 13, c: ['#262c2c', '#6a7272', '#9aa2a2', '#4a8a4a'], deco: 'moss' },
-  snowbank: { shape: 'round', w: 30, h: 11, c: ['#6a88a0', '#c4dcea', '#f4fbff', '#ffffff'] },
-  sled: { shape: 'block', w: 18, h: 8, top: 4, c: ['#3a1a1a', '#b02a2a', '#e05a4a', '#7a1a1a'], deco: 'planks' },
-  crates: { shape: 'block', w: 20, h: 16, top: 6, c: ['#3a2a14', '#8a6a3a', '#b08a52', '#5a4228'], deco: 'x' },
-  barrel: { shape: 'round', w: 14, h: 14, c: ['#2a1c10', '#7a5434', '#a07448', '#3a3a44'], deco: 'hoops' },
-  sandcastle: { shape: 'block', w: 18, h: 13, top: 5, c: ['#7a6040', '#c8a46a', '#e0c48a', '#e05a4a'], deco: 'towers' },
-  deckchair: { shape: 'block', w: 14, h: 10, top: 6, c: ['#2e3640', '#3fa6ef', '#f4f0e8', '#3fa6ef'], deco: 'stripes' },
-  rock: { shape: 'round', w: 22, h: 14, c: ['#4a2e1a', '#a0704a', '#c8946a', '#8a5a3a'] },
-  cactusclump: { shape: 'round', w: 18, h: 14, c: ['#1e4a28', '#3a8a46', '#5ab060', '#f4a6c6'], deco: 'spines' },
-  cart: { shape: 'block', w: 24, h: 13, top: 6, c: ['#3a2a14', '#8a6a3a', '#b08a52', '#262a30'], deco: 'wheels' },
+  planter: { shape: 'block', w: 20, h: 13, top: 6, c: ['#4a3428', '#a8806a', '#4f8a3e', '#f4a6c6'], deco: 'flowers', move: 'fixed' },
+  barrier: { shape: 'block', w: 26, h: 10, top: 3, c: ['#6a1a1a', '#e05a4a', '#f4f0e8', '#f4f0e8'], deco: 'stripes', lamp: true, move: 'slide', mass: 2 },
+  bollards: { shape: 'posts', w: 28, h: 9, c: ['#1e3a48', '#4a7a8c', '#8ab8c8', '#f2d04a'], move: 'fixed' },
+  bench: { shape: 'block', w: 24, h: 9, top: 5, c: ['#4a2e14', '#7a4e22', '#a8743a', '#5a3a1a'], deco: 'planks', move: 'fixed' },
+  flowerbed: { shape: 'round', w: 24, h: 13, c: ['#1d4a26', '#2c7438', '#4fa04a', '#f4a6c6'], deco: 'flowers', move: 'fixed' },
+  fountain: { shape: 'round', w: 32, h: 16, c: ['#2e4c5a', '#8aa8b4', '#b8d0d8', '#4ab8e0'], deco: 'water', move: 'fixed' },
+  log: { shape: 'log', w: 36, h: 9, c: ['#3a2414', '#6a4e30', '#8a6a44', '#c8a070'], move: 'slide', mass: 5 },
+  boulder: { shape: 'round', w: 18, h: 13, c: ['#2e4034', '#6a8072', '#9ab0a0', '#4a8a4a'], deco: 'moss', move: 'fixed' },
+  snowbank: { shape: 'round', w: 30, h: 11, c: ['#6a88a0', '#c4dcea', '#f4fbff', '#ffffff'], move: 'fixed' },
+  snowpile: { shape: 'round', w: 18, h: 9, c: ['#7898b0', '#d0e4ee', '#f4fbff', '#ffffff'], move: 'scatter' },
+  snowpine: { shape: 'pine', w: 16, h: 20, c: ['#163a20', '#2c703c', '#f4fbff', '#5a4228'], move: 'fixed' },
+  crates: { shape: 'block', w: 20, h: 16, top: 6, c: ['#4a3018', '#8a6a3a', '#b08a52', '#5a4228'], deco: 'x', move: 'slide', mass: 2 },
+  barrel: { shape: 'round', w: 14, h: 14, c: ['#3a2414', '#7a5434', '#a07448', '#4a3424'], deco: 'hoops', move: 'slide', mass: 1 },
+  sandcastle: { shape: 'block', w: 18, h: 13, top: 5, c: ['#7a6040', '#c8a46a', '#e0c48a', '#e05a4a'], deco: 'towers', move: 'scatter' },
+  deckchair: { shape: 'block', w: 14, h: 10, top: 6, c: ['#1a4a7a', '#3fa6ef', '#f4f0e8', '#3fa6ef'], deco: 'stripes', move: 'slide', mass: 1 },
+  rock: { shape: 'round', w: 22, h: 14, c: ['#4a2e1a', '#a0704a', '#c8946a', '#8a5a3a'], move: 'fixed' },
+  cactusclump: { shape: 'round', w: 18, h: 14, c: ['#1e4a28', '#3a8a46', '#5ab060', '#f4a6c6'], deco: 'spines', move: 'fixed' },
+  cart: { shape: 'block', w: 24, h: 13, top: 6, c: ['#4a3018', '#8a6a3a', '#b08a52', '#3a2a20'], deco: 'wheels', move: 'slide', mass: 3 },
 };
 
 // Wall outcrops, per place: [width into the street, height, colors, deco].
@@ -58,7 +64,7 @@ const PLACE = {
   town: ['planter', 'barrier', 'bollards'],
   park: ['bench', 'flowerbed', 'fountain'],
   forest: ['log', 'boulder', 'log'],
-  snow: ['snowbank', 'sled', 'snowbank'],
+  snow: ['snowbank', 'snowpile', 'snowpine'],
   harbor: ['crates', 'barrel', 'bollards'],
   beach: ['sandcastle', 'deckchair'],
   desert: ['rock', 'cactusclump', 'cart'],
@@ -85,6 +91,15 @@ function paint(spec, w, h) {
     b.fillEllipse(X(W - 4), Y(H / 2 + 0.5), 3.5, H / 2, 4);
     b.fillEllipse(X(W - 4), Y(H / 2 + 0.5), 1.5, H / 4, 2);
     for (let x = 4; x < W - 6; x += 7) b.set(X(x), Y(H - 3), 1);
+  } else if (spec.shape === 'pine') {
+    // A small fir: a trunk and three tiers, snow on the left of each.
+    for (let y = H - 4; y < H; y++) for (let x = W / 2 - 1; x < W / 2 + 1; x++) b.set(X(x), Y(y), 4);
+    for (let i = 0; i < 3; i++) {
+      const y0 = i * (H / 4);
+      const half = W / 2 - i * 1.5;
+      b.fillPoly([[X(W / 2), Y(y0)], [X(W / 2 + half), Y(y0 + H / 3)], [X(W / 2 - half), Y(y0 + H / 3)]], 2);
+      b.fillPoly([[X(W / 2), Y(y0 + 1)], [X(W / 2 - 1), Y(y0 + H / 3 - 1)], [X(W / 2 - half + 1), Y(y0 + H / 3 - 1)]], 3);
+    }
   } else if (spec.shape === 'posts') {
     for (let i = 0; i < 3; i++) {
       const x0 = Math.round(i * (W - 4) / 2);
@@ -197,7 +212,7 @@ export class Obstacles {
   add(kind, x, y, place) {
     const spec = KINDS[kind];
     const art = sprite(kind, () => bake(spec, spec.w, spec.h));
-    this.list.push({ kind, x, y, w: spec.w, h: spec.h, art, flip: false, lamp: spec.lamp, place });
+    this.list.push({ kind, x, y, w: spec.w, h: spec.h, art, flip: false, lamp: spec.lamp, place, move: spec.move, mass: spec.mass ?? 1, colors: spec.c, vx: 0, vy: 0, shake: 0 });
   }
 
   // A piece of wall jutting out from one side.
@@ -206,7 +221,7 @@ export class Obstacles {
     const spec = { shape: 'block', top: Math.round(h * 0.4), c, deco };
     const art = sprite(`wall-${place}`, () => bake(spec, w, h));
     const x = side ? GROUND_R - w / 2 + 2 : GROUND_L + w / 2 - 2;
-    this.list.push({ kind: 'outcrop', x, y, w, h, art, flip: side === 1, wall: true, place });
+    this.list.push({ kind: 'outcrop', x, y, w, h, art, flip: side === 1, wall: true, place, move: 'fixed', mass: 1, colors: c, vx: 0, vy: 0, shake: 0 });
   }
 
   // Picks a pattern for the place at the top of the street. Busier streets get
@@ -254,14 +269,80 @@ export class Obstacles {
     o.x = clamp(o.x, GROUND_L + o.w / 2 + 2, GROUND_R - o.w / 2 - 2);
   }
 
-  update(sc) {
-    for (const o of this.list) o.y += sc;
-    this.list = this.list.filter((o) => o.y - o.h < PF_H + 10);
+  update(sc, dt = 1 / 60) {
+    for (const o of this.list) {
+      o.y += sc + o.vy * dt;
+      o.shake = Math.max(0, o.shake - dt);
+      if (o.vx || o.vy) this.slide(o, dt);
+    }
+    this.list = this.list.filter((o) => !o.gone && o.y - o.h < PF_H + 10);
     if (this.density <= 0) return;
     this.gap -= sc;
     if (this.gap <= 0) {
       this.spawn(this.world.locAt(-30).key, this.density);
-      this.gap = OBSTACLES.minGap + 80 + rand(0, OBSTACLES.spread) * (1.15 - this.density);
+      const gap = OBSTACLES.minGap + 80 + rand(0, OBSTACLES.spread) * (1.15 - this.density);
+      this.gap = Math.max(gap, this.world.speed * OBSTACLES.minGapTime);
+    }
+  }
+
+  // ---- the force field -----------------------------------------------------
+
+  // A force-field front of radius `rf` sweeping out from wave `w`: light
+  // things are shoved away (heavier ones less), crumbly ones are blown apart,
+  // and fixed ones just shudder. Each obstacle feels each wave once.
+  blast(w, rf) {
+    w.hitObstacles ??= new Set();
+    for (const o of this.list) {
+      if (w.hitObstacles.has(o)) continue;
+      const cy = o.y - o.h / 2;
+      const dx = o.x - w.x;
+      const dy = (cy - w.y) * 2;
+      const d = Math.hypot(dx, dy) || 1;
+      if (d > rf + o.w / 2) continue;
+      w.hitObstacles.add(o);
+      const k = Math.max(0.3, 1 - d / (rf + o.w / 2));
+      const world = this.world;
+      if (o.move === 'slide') {
+        const v = (OBSTACLES.fieldPush * k) / o.mass;
+        o.vx += (dx / d) * v;
+        o.vy += (dy / d) * v * 0.35;
+        o.shake = 0.2;
+        world.splash(o.x, o.y - 2, 4, o.colors[2], false, 40);
+      } else if (o.move === 'scatter') {
+        o.gone = true;
+        world.burst(o.x, cy, 14, o.colors[2], 70);
+        world.burst(o.x, cy, 8, o.colors[1], 50);
+        world.addRipple(o.x, o.y - 2, o.w * 0.6, 2, 0.8);
+      } else {
+        o.shake = 0.35;
+        world.splash(o.x, o.y - o.h, 3, o.colors[3], true, 30);
+      }
+    }
+  }
+
+  // A pushed obstacle slides, slowing down, and stops at the walls. If it
+  // would close the way past another obstacle in its row, it's steered to
+  // the wall instead, so there's always a way through.
+  slide(o, dt) {
+    const lo = GROUND_L + o.w / 2 + 2;
+    const hi = GROUND_R - o.w / 2 - 2;
+    o.x += o.vx * dt;
+    if (o.x < lo || o.x > hi) {
+      o.x = clamp(o.x, lo, hi);
+      o.vx = 0;
+    }
+    const f = Math.exp(-4 * dt);
+    o.vx *= f;
+    o.vy *= f;
+    if (Math.abs(o.vx) < 2 && Math.abs(o.vy) < 2) o.vx = o.vy = 0;
+    for (const q of this.list) {
+      if (q === o || Math.abs(q.y - o.y) > 16) continue;
+      const [a, b] = o.x < q.x ? [o, q] : [q, o];
+      const opening = b.x - b.w / 2 - (a.x + a.w / 2);
+      if (opening >= 0 && opening < OBSTACLES.minOpening) {
+        const toWall = o.x < (GROUND_L + GROUND_R) / 2 ? -1 : 1;
+        o.vx = toWall * 60;
+      }
     }
   }
 
@@ -341,7 +422,8 @@ export class Obstacles {
 
   drawOne(ctx, o) {
     const cv = o.flip ? o.art.flip : o.art.cv;
-    ctx.drawImage(cv, Math.round(o.x - cv.width / 2), this.world.sy(o.y) - cv.height + 1);
+    const jolt = o.shake > 0 ? (Math.floor(o.shake * 40) % 2 ? 1 : -1) : 0;
+    ctx.drawImage(cv, Math.round(o.x - cv.width / 2) + jolt, this.world.sy(o.y) - cv.height + 1);
   }
 
   // In haze, a pale outline keeps them readable through the fog.

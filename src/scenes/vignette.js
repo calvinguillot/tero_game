@@ -1,5 +1,5 @@
 import { CHAPTERS } from '../game/chapters.js';
-import { loveUmbrella, drawKeepsake } from '../game/love.js';
+import { loveUmbrella, drawMarker } from '../game/love.js';
 import { World } from '../world/world.js';
 import { Sky } from '../world/sky.js';
 import { LOCATIONS } from '../world/locations.js';
@@ -99,9 +99,9 @@ export class VignetteScene {
     sky.strikeT = 1e9; // lightning only when the script says so
     this.world = new World({ speed: 0, location: ch.place, lowFx: !s.fx, sky });
     this.world.softFlash = !s.flash;
-    this.her = loveUmbrella(90, 70);
+    this.her = loveUmbrella(90, 70, 14, s.style);
     this.you = { x: 90, y: 260, r: 14, color: s.color, style: s.style, handle: 'j', tilt: 0, open: 1, inv: false, bobY: 0, pitch: 0 };
-    this.mirages = ch.special === 'mirage' ? [loveUmbrella(46, 80), loveUmbrella(134, 80)] : [];
+    this.mirages = ch.special === 'mirage' ? [loveUmbrella(46, 80, 14, s.style), loveUmbrella(134, 80, 14, s.style)] : [];
     this.marks = [];
     this.lastMark = 0;
     this.t = 0;
@@ -133,7 +133,16 @@ export class VignetteScene {
     const { input } = this.game;
     this.prevT = this.t;
     this.t += dt;
+    const [hx, hy, yx, yy] = [this.her.x, this.her.y, this.you.x, this.you.y];
     SCRIPTS[this.index](this, this.t);
+    // Footprints on snow and sand behind whoever is walking (hers faintly red).
+    if ((this.stepT = (this.stepT ?? 0) - dt) <= 0) {
+      this.stepT = 0.22;
+      this.side = -(this.side || 1);
+      const w = this.world;
+      if (Math.hypot(this.her.x - hx, this.her.y - hy) > 0.05) w.leavePrint(this.her.x + this.side * 2, this.her.y + 13, true);
+      if (Math.hypot(this.you.x - yx, this.you.y - yy) > 0.05) w.leavePrint(this.you.x + this.side * 2, this.you.y + 13);
+    }
     this.her.bobY = Math.round(Math.sin(this.t * 5) * 0.6);
     this.you.bobY = Math.floor(this.t * 8) % 2 ? -1 : 0;
     this.world.umbrellas = [this.you, this.her];
@@ -152,7 +161,7 @@ export class VignetteScene {
       drawStreet(ctx, this.world, [this.you, ...her], {
         glow: [this.you, ...her],
         ground: () => {
-          for (const m of this.marks) drawKeepsake(ctx, m, Math.round, clamp(1 - (this.t - m.t) / 4, 0, 1));
+          for (const m of this.marks) drawMarker(ctx, m, this.world, this.t, clamp(1 - (this.t - m.t) / 4, 0, 1));
         },
         overlay: () => {
           for (const m of this.mirages) {

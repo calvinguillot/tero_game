@@ -128,11 +128,13 @@ function landscape(ctx, s, input) {
     label(ctx, s.together ? 'TOGETHER' : 'JUST WALK', 35, 40);
     if (s.together) label(ctx, 'HER: ARROWS', 35, 50);
   } else if (s.chapterInfo) {
-    const { left, progress } = s.chapterInfo;
+    const { left, progress, closes } = s.chapterInfo;
     label(ctx, 'TIME', 35, 9);
     clock(ctx, s, left, 35, 18, 3, 'center');
     label(ctx, 'FINISH', 35, 46);
     toHer(ctx, 11, 56, 40, progress, s.t);
+    label(ctx, 'CLOSE!', 35, 74);
+    drawText(ctx, closes, 35, 83, s.bumpT > 0 ? '#ffffff' : PAL.text, { scale: 2, shadow: PAL.textShadow, align: 'center' });
   } else {
     if (!s.title) {
       label(ctx, 'SCORE', 35, 9);
@@ -184,7 +186,8 @@ function portrait(ctx, s, input) {
     if (s.timeName) drawText(ctx, s.timeName, 40, 10, PAL.textDim);
   } else if (s.chapterInfo) {
     clock(ctx, s, s.chapterInfo.left, 8, 8, 2, 'left');
-    toHer(ctx, 52, 11, 80, s.chapterInfo.progress, s.t);
+    toHer(ctx, 44, 11, 56, s.chapterInfo.progress, s.t);
+    drawText(ctx, `CLOSE! ${s.chapterInfo.closes}`, 148, 10, PAL.textDim, { align: 'right' });
   } else {
     if (!s.title) {
       score(ctx, s, 8, 8, 2, 'left');

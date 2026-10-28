@@ -73,8 +73,8 @@ export class StoryMenuScene {
       plate(ctx, 14, 178, 152, 26);
       if (this.sel < story.unlocked) {
         hint(ctx, `${LOCATIONS[ch.place].name} - ${ch.hour}`, 182);
-        const best = story.best[this.sel];
-        hint(ctx, best != null ? `BEST: ${best.toFixed(1)} S TO SPARE` : `${ch.limit} SECONDS TO FIND HER`, 192);
+        const r = story.records?.[this.sel];
+        hint(ctx, r?.time != null ? `BEST ${r.time.toFixed(1)} S   CLOSE! ${r.closes}` : `${ch.limit} SECONDS TO THE LINE`, 192);
       } else {
         hint(ctx, 'FINISH THE CHAPTER BEFORE', 182);
         hint(ctx, 'TO FIND YOUR WAY HERE.', 192);

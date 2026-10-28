@@ -680,6 +680,7 @@ export class PlayScene {
         this.world.splash(n.x, n.y - n.r * 0.6, 6, PAL.splash, true, 50);
       }
       this.world.pushWater(w.x, w.y, rf);
+      this.world.obstacles.blast(w, rf);
     }
     this.world.domes = domes;
   }

@@ -42,7 +42,9 @@ const ROWS = [
 const ROW_Y = 112;
 const ROW_H = 11;
 // START sits under the rows, lower when there are more of them.
-const startY = (rows) => Math.max(170, ROW_Y + (rows - 1) * ROW_H + 14);
+// (`rows` counts START; the box of options ends 12 px below the last one's top,
+// and START keeps 8 px from it and 6 px from the help box at 192.)
+const startY = (rows) => ROW_Y + (rows - 2) * ROW_H + 20;
 
 // Between PLAY and the run: pick the mode, your umbrella and the level, with a
 // live preview. Zen has no levels, so LEVEL is hidden there. Choices are
@@ -123,7 +125,7 @@ export class SetupScene {
       const s = this.game.data.settings;
       const rows = this.rows;
       const start = rows.length - 1;
-      plate(ctx, 14, ROW_Y - 8, 152, start * ROW_H + 4);
+      plate(ctx, 14, ROW_Y - 7, 152, (start - 1) * ROW_H + 19);
       rows.slice(0, start).forEach((row, i) => {
         const y = ROW_Y + i * ROW_H;
         const on = i === this.sel;

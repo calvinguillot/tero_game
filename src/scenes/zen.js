@@ -37,7 +37,7 @@ export class ZenScene extends PlayScene {
     // You take WASD (or the stick); she takes the arrow keys, and when nobody
     // steers her she keeps you company on her own.
     const { together } = game.data.settings;
-    this.partner = together && game.data.story.done ? new Player("love", "classic") : null;
+    this.partner = together && game.data.story.done ? new Player("love", game.data.settings.style) : null;
     this.herIdle = Infinity;
     this.wasd = { axis: () => game.input.axisOf("wasd") };
     if (this.partner) {

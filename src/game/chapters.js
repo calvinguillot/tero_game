@@ -5,55 +5,70 @@ import { lerp } from '../core/math.js';
 // through town. Each chapter is a race down one street, at a fixed hour and
 // weather, to a finish line before the clock runs out.
 //
-// Everything that shapes the difficulty lives in STORY. A chapter's values
-// are spread evenly from the first chapter's to the last one's.
+// Everything that shapes Story's difficulty lives in STORY. Values given as
+// "first ... last" are spread evenly across the chapters.
 export const STORY = {
-  baseSpeed: 34, // px/s: every chapter starts at this pace
-  finalSpeedMul: 5, // the last chapter builds up to this many times baseSpeed
-  rampPower: 1.6, // how the pace builds within a chapter (higher = later)
-  firstDist: 2400, // px of street in the first chapter
-  lastDist: 8000, // ... and in the last
-  slackFirst: 1.3, // time limit = time to walk it at its own pace × this,
-  slackLast: 1.2, // ... from roomy in the first chapter to tighter in the last
+  startTime: 90, // seconds on the clock at the start of every chapter
+  baseSpeed: 34, // px/s: the street's pace at 1×
+  // Per chapter: the pace it starts at and the pace it builds up to, as
+  // multiples of baseSpeed.
+  levels: [
+    { startSpeed: 1, maxSpeed: 2 },
+    { startSpeed: 1, maxSpeed: 2 },
+    { startSpeed: 1, maxSpeed: 3 },
+    { startSpeed: 1, maxSpeed: 3 },
+    { startSpeed: 1, maxSpeed: 5 },
+    { startSpeed: 1, maxSpeed: 5 },
+    { startSpeed: 1, maxSpeed: 7 },
+    { startSpeed: 1, maxSpeed: 7 },
+  ],
+  rampPower: 1.6, // how the pace builds within a chapter (1 = evenly, higher = later)
+  // A chapter's length is set so that walking it cleanly takes startTime /
+  // slack seconds: the rest of the clock is room for bumps. Faster chapters
+  // get more room (bumps come quicker at speed), so their streets are a
+  // little shorter.
+  slackFirst: 1.25,
+  slackLast: 1.4,
   hitCost: 3, // seconds lost per bump
-  keepsakeTime: 2, // seconds gained per thing of hers picked up
-  trailEvery: 6, // seconds between things of hers waiting up the street
+  keepsakeTime: 2, // seconds gained per marker of hers picked up
+  trailEvery: 6, // seconds between markers waiting up the street
   dropEvery: 1.2, // ... and between the ones she drops while in view
   sightEvery: [12, 20], // seconds between glimpses of her
   sightFor: [1.5, 3], // seconds she stays in view
   spawnFirst: 1.6, // seconds between walkers in the first chapter
   spawnLast: 0.75, // ... and in the last
-  npcSpeedFirst: 0.8,
+  npcSpeedFirst: 0.8, // how fast walkers walk (× normal)
   npcSpeedLast: 1.2,
   obstaclesFirst: 0.2, // obstacle density, 0..1
   obstaclesLast: 0.9,
 };
 
-// time: hour of the day (see sky.js); keepsake: what she leaves behind;
-// crowd: walker weights. special: 'mirage' (false red umbrellas shimmer next
-// to her), 'lightning' (she shows only in the flashes), 'reunion' (the crowd
-// thins and the rain stops near the end).
+// time: hour of the day (see sky.js); crowd: walker weights. special:
+// 'mirage' (false red umbrellas shimmer next to her), 'lightning' (she shows
+// only in the flashes), 'reunion' (the last chapter: the ending follows).
 const PLAN = [
-  { title: 'FIRST GLANCE', place: 'town', hour: 'MORNING', time: 0.13, weather: 'drizzle', keepsake: 'ripples', crowd: { commuter: 5, wanderer: 2 } },
-  { title: 'LOST IN THE CROWD', place: 'market', hour: 'NOON', time: 0.2, weather: 'rainy', keepsake: 'ripples', crowd: { commuter: 5, wanderer: 3, pair: 3, elder: 1 } },
-  { title: 'THROUGH THE FOG', place: 'park', hour: 'AFTERNOON', time: 0.34, weather: 'hazy', keepsake: 'petals', crowd: { commuter: 4, wanderer: 3, elder: 2, pair: 1 } },
-  { title: 'MIRAGE', place: 'desert', hour: 'SUNSET', time: 0.5, weather: 'drizzle', keepsake: 'ripples', special: 'mirage', crowd: { commuter: 4, wanderer: 2, hurrier: 2, elder: 1 } },
-  { title: 'FALLEN PETALS', place: 'forest', hour: 'DUSK', time: 0.61, weather: 'rainy', keepsake: 'petals', crowd: { commuter: 4, wanderer: 3, kid: 2, hurrier: 1 } },
-  { title: 'FOOTPRINTS', place: 'snow', hour: 'NIGHT', time: 0.76, weather: 'rainy', keepsake: 'prints', crowd: { commuter: 4, wanderer: 2, kid: 2, hurrier: 2, pair: 1 } },
-  { title: 'THE STORM', place: 'harbor', hour: 'MIDNIGHT', time: 0.84, weather: 'stormy', keepsake: 'ripples', special: 'lightning', crowd: { commuter: 5, hurrier: 2, kid: 2, pair: 2, wanderer: 1 } },
-  { title: 'REUNION', place: 'beach', hour: 'DAWN', time: 0.02, weather: 'drizzle', keepsake: 'prints', special: 'reunion', crowd: { commuter: 3, wanderer: 3, elder: 2, kid: 1 } },
+  { title: 'FIRST GLANCE', place: 'town', hour: 'MORNING', time: 0.13, weather: 'drizzle', crowd: { commuter: 5, wanderer: 2 } },
+  { title: 'LOST IN THE CROWD', place: 'market', hour: 'NOON', time: 0.2, weather: 'rainy', crowd: { commuter: 5, wanderer: 3, pair: 3, elder: 1 } },
+  { title: 'THROUGH THE FOG', place: 'park', hour: 'AFTERNOON', time: 0.34, weather: 'hazy', crowd: { commuter: 4, wanderer: 3, elder: 2, pair: 1 } },
+  { title: 'MIRAGE', place: 'desert', hour: 'SUNSET', time: 0.5, weather: 'drizzle', special: 'mirage', crowd: { commuter: 4, wanderer: 2, hurrier: 2, elder: 1 } },
+  { title: 'FALLEN PETALS', place: 'forest', hour: 'DUSK', time: 0.61, weather: 'rainy', crowd: { commuter: 4, wanderer: 3, kid: 2, hurrier: 1 } },
+  { title: 'FOOTPRINTS', place: 'snow', hour: 'NIGHT', time: 0.76, weather: 'rainy', crowd: { commuter: 4, wanderer: 2, kid: 2, hurrier: 2, pair: 1 } },
+  { title: 'THE STORM', place: 'harbor', hour: 'MIDNIGHT', time: 0.84, weather: 'stormy', special: 'lightning', crowd: { commuter: 5, hurrier: 2, kid: 2, pair: 2, wanderer: 1 } },
+  { title: 'REUNION', place: 'beach', hour: 'DAWN', time: 0.02, weather: 'drizzle', special: 'reunion', crowd: { commuter: 3, wanderer: 3, elder: 2, kid: 1 } },
 ];
 
-// The street's pace at `progress` (0..1) through a chapter.
+// The street's pace at `progress` (0..1) through a chapter: smoothly from its
+// start speed to its top speed.
 export function speedAt(ch, progress) {
-  return STORY.baseSpeed * (1 + (ch.maxMul - 1) * Math.max(0, progress) ** STORY.rampPower);
+  const k = Math.min(1, Math.max(0, progress)) ** STORY.rampPower;
+  return STORY.baseSpeed * lerp(ch.startSpeed, ch.maxSpeed, k);
 }
 
-// Seconds to walk a chapter at its own pace (no bumps, nothing picked up).
-function walkTime(ch) {
+// Seconds to walk one pixel of a chapter, averaged over its speed curve.
+function secondsPerPx(ch) {
   let t = 0;
-  const steps = 200;
-  for (let i = 0; i < steps; i++) t += ch.dist / steps / speedAt(ch, (i + 0.5) / steps);
+  const steps = 400;
+  for (let i = 0; i < steps; i++) t += 1 / steps / speedAt(ch, (i + 0.5) / steps);
   return t;
 }
 
@@ -62,8 +77,9 @@ export const CHAPTERS = PLAN.map((p, i) => {
   const S = STORY;
   const ch = {
     ...p,
-    maxMul: lerp(1, S.finalSpeedMul, k),
-    dist: Math.round(lerp(S.firstDist, S.lastDist, k) / 100) * 100,
+    ...S.levels[i],
+    limit: S.startTime,
+    walk: S.startTime / lerp(S.slackFirst, S.slackLast, k), // a clean run
     obstacles: lerp(S.obstaclesFirst, S.obstaclesLast, k),
     d: {
       ...DIFFICULTY.normal,
@@ -73,8 +89,8 @@ export const CHAPTERS = PLAN.map((p, i) => {
       sway: lerp(0.6, 1.3, k),
     },
   };
-  ch.walk = walkTime(ch);
-  ch.limit = Math.ceil(ch.walk * lerp(S.slackFirst, S.slackLast, k));
+  // The length follows from the clock and the speed curve.
+  ch.dist = Math.round(ch.walk / secondsPerPx(ch) / 100) * 100;
   return ch;
 });
 

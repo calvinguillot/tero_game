@@ -1,6 +1,6 @@
 import { CHAPTERS, STORY, speedAt, starsFor } from "../game/chapters.js";
 import { overlapRatio } from "../game/collision.js";
-import { loveUmbrella, drawKeepsake } from "../game/love.js";
+import { loveUmbrella, drawMarker } from "../game/love.js";
 import { Decor } from "../world/decor.js";
 import { saveData } from "../core/storage.js";
 import { rand, clamp } from "../core/math.js";
@@ -48,22 +48,23 @@ export class StoryScene extends PlayScene {
     w.zones = [{ loc: ch.place, b: Infinity }];
     w.decor = new Decor(w);
     w.animals.list = [];
-    this.timeLeft = ch.limit;
-    this.walked = 0;
+    this.timeLeft = STORY.startTime;
     this.started = false; // the race begins once she's run off
-    this.her = loveUmbrella(90, 118);
-    this.her.away = false;
+    this.startAt = 0; // world scroll when it began
+    this.finishAt = Infinity; // world scroll at which the finish line reaches HOME_Y
+    this.elapsed = 0; // seconds since "GO!"
+    const { style } = game.data.settings;
+    this.her = loveUmbrella(90, 118, 14, style);
     this.sightT = rand(...STORY.sightEvery);
     this.sightLeft = 0;
     this.herTarget = 90;
     this.mirages =
       ch.special === "mirage"
-        ? [loveUmbrella(50, -40), loveUmbrella(130, -40)]
+        ? [loveUmbrella(50, -40, 14, style), loveUmbrella(130, -40, 14, style)]
         : [];
     this.keepsakes = [];
     this.trailT = 1;
     this.dropT = 0;
-    this.sunny = false;
     this.endT = 0;
     this.stars = 0;
   }
@@ -100,11 +101,15 @@ export class StoryScene extends PlayScene {
   get timeName() {
     return this.ch.hour;
   }
+  // Street walked since "GO!".
+  get walked() {
+    return this.started ? this.world.scrollY - this.startAt : 0;
+  }
   get progress() {
     return clamp(this.walked / this.ch.dist, 0, 1);
   }
   get chapterInfo() {
-    return { left: Math.max(0, this.timeLeft), progress: this.progress };
+    return { left: Math.max(0, this.timeLeft), progress: this.progress, closes: this.closes };
   }
 
   // She's drawn with you when she can be seen (but not lit up at night: she's
@@ -117,11 +122,9 @@ export class StoryScene extends PlayScene {
     return this.ch.crowd;
   }
 
+  // The crowd comes from "GO!" until you cross the line.
   spawn() {
-    if (!this.started) return;
-    // On the last stretch at dawn the crowd thins out to nobody.
-    if (this.ch.special === "reunion" && this.progress > 0.55) return;
-    super.spawn();
+    if (this.started) super.spawn();
   }
 
   streetSpeed() {
@@ -132,10 +135,12 @@ export class StoryScene extends PlayScene {
     return this.started && this.progress < 0.96 ? this.ch.obstacles : 0;
   }
 
-  // Where the finish line is on screen: it reaches HOME_Y when the distance
-  // is done, and you finish when it passes under you.
+  // The finish line is a fixed place on the street (finishAt, in world
+  // scroll): its screen row comes from how far the street has scrolled, so it
+  // keeps moving with the street after you've crossed it. It reaches HOME_Y
+  // when the distance is done; you finish when it passes under you.
   get finishY() {
-    return HOME_Y - (this.ch.dist - this.walked);
+    return HOME_Y - (this.finishAt - this.world.scrollY);
   }
 
   update(dt) {
@@ -154,21 +159,18 @@ export class StoryScene extends PlayScene {
     if (!this.started) {
       if (this.t < RUN_OFF) return;
       this.started = true;
+      this.startAt = this.world.scrollY;
+      this.finishAt = this.startAt + ch.dist;
       this.toasts.push({ text: "GO!", t: 0 });
       this.sound("rushStart");
       return;
     }
-    this.walked += sc;
+    this.elapsed += dt;
     const was = this.timeLeft;
     this.timeLeft -= dt;
     // The last five seconds tick.
     if (this.timeLeft < 5 && Math.ceil(this.timeLeft) !== Math.ceil(was))
       this.sound("tick");
-    // At dawn the rain stops for the last of the way.
-    if (ch.special === "reunion" && !this.sunny && this.progress > 0.75) {
-      this.sunny = true;
-      if (this.world.sky.setWeather("sunny", 5)) this.quietWeather++;
-    }
     if (this.finishY >= this.player.y) this.arrive();
     else if (this.timeLeft <= 0) this.outOfTime();
   }
@@ -181,7 +183,16 @@ export class StoryScene extends PlayScene {
     this.endT = 0;
     this.stars = starsFor(this.ch, this.timeLeft);
     s.stars[i] = Math.max(s.stars[i] ?? 0, this.stars);
-    s.best[i] = Math.max(s.best[i] ?? 0, Math.round(this.timeLeft * 10) / 10);
+    // Records: only finished runs count. Fastest time and most CLOSE! are
+    // kept separately (they needn't come from the same run).
+    const r = (s.records[i] ??= {});
+    // The time the clock counted: real time, plus bumps, minus her markers.
+    const time = Math.round((STORY.startTime - this.timeLeft) * 10) / 10;
+    this.raceTime = time;
+    this.newTime = !(r.time <= time);
+    this.newCloses = this.closes > (r.closes ?? -1);
+    if (this.newTime) r.time = time;
+    if (this.newCloses) r.closes = this.closes;
     s.unlocked = Math.max(s.unlocked, Math.min(CHAPTERS.length, i + 2));
     saveData(data);
     this.sound("lifeUp");
@@ -198,7 +209,10 @@ export class StoryScene extends PlayScene {
     const { input } = this.game;
     this.endT += dt;
     if (this.endT < 0.8) return;
-    const go = input.hit("confirm") || input.hit("action");
+    const last = this.index === CHAPTERS.length - 1;
+    // After the last chapter the ending follows by itself.
+    const auto = last && this.state === "arrive" && this.endT > 4;
+    const go = input.hit("confirm") || input.hit("action") || auto;
     if (input.hit("pause")) return this.leave();
     if (!go) return;
     if (this.state === "timeup") this.restart();
@@ -213,6 +227,12 @@ export class StoryScene extends PlayScene {
   updateHer(dt) {
     const h = this.her;
     const sky = this.world.sky;
+    // On snow and sand she leaves prints too (faintly red), while she's there.
+    if (h.y > -4 && h.y < PF_H && (this.herStepT = (this.herStepT ?? 0) - dt) <= 0) {
+      this.herStepT = 0.22;
+      this.herSide = -(this.herSide || 1);
+      this.world.leavePrint(h.x + this.herSide * 2, h.y + 13, true);
+    }
     if (!this.started) {
       const t = this.t;
       h.tilt = t < 0.9 ? -3 * Math.min(1, t * 3) : 0;
@@ -258,7 +278,7 @@ export class StoryScene extends PlayScene {
   // Her trail: things she drops while in view, and more of them waiting up
   // the street between glimpses. Walk over them for time.
   updateKeepsakes(dt, sc) {
-    const kind = this.ch.keepsake;
+    const kind = "marker";
     if (this.started && this.state === "play") {
       const h = this.her;
       if (h.y > -6 && (this.dropT -= dt) <= 0) {
@@ -342,8 +362,10 @@ export class StoryScene extends PlayScene {
   // Her trail on the street, and the finish: a band of pale paving with red
   // umbrellas painted on it.
   drawGround(ctx) {
-    for (const k of this.keepsakes) drawKeepsake(ctx, k, this.world.sy);
-    const y = Math.round(this.finishY);
+    for (const k of this.keepsakes) drawMarker(ctx, k, this.world, this.t);
+    if (!this.started) return;
+    // Rounded through World.sy, so it steps with the pavement.
+    const y = this.world.sy(this.finishY);
     if (y < -12 || y > PF_H + 12) return;
     ctx.fillStyle = "#d8e6ec";
     ctx.fillRect(GROUND_L, y - 5, GROUND_R - GROUND_L, 10);
@@ -360,7 +382,8 @@ export class StoryScene extends PlayScene {
   // Overhead: a string of red paper lanterns across the street above the
   // finish, glowing at night.
   drawLanterns(ctx) {
-    const y0 = Math.round(this.finishY) - 30;
+    if (!this.started) return;
+    const y0 = this.world.sy(this.finishY) - 30;
     if (y0 < -20 || y0 > PF_H) return;
     const night = this.world.sky.night;
     const sag = (x) => y0 + Math.round(Math.sin(((x - GROUND_L) / (GROUND_R - GROUND_L)) * Math.PI) * 6);
@@ -406,17 +429,20 @@ export class StoryScene extends PlayScene {
     ctx.fillStyle = PAL.overlay;
     ctx.fillRect(0, 60, PF_W, 112);
     const last = this.index === CHAPTERS.length - 1;
-    const title = last ? "THE COAST" : "MADE IT";
+    const title = last ? "THE BEACH" : "MADE IT";
     drawText(ctx, title, c, 72, PAL.text, { ...opt, scale: 2 });
     // Hearts for stars.
     for (let i = 0; i < 3; i++) {
       const color = i < this.stars ? RED.base : PAL.textDim;
       drawText(ctx, "*", c - 18 + i * 18, 96, color, { ...opt, scale: 3 });
     }
-    const spare = `${this.timeLeft.toFixed(1)} S TO SPARE`;
-    drawText(ctx, spare, c, 128, PAL.text, opt);
+    const run = `${this.raceTime.toFixed(1)} S   CLOSE! ${this.closes}`;
+    drawText(ctx, run, c, 124, PAL.text, opt);
+    const best = [this.newTime && "BEST TIME", this.newCloses && "MOST CLOSE!"];
+    const news = best.filter(Boolean).join(" + ");
+    if (news) drawText(ctx, `NEW ${news}`, c, 134, RED.light, opt);
     if (Math.floor(this.endT * 2.5) % 2 === 0)
-      drawText(ctx, "SPACE OR TAP TO GO ON", c, 152, PAL.text, opt);
+      drawText(ctx, "SPACE OR TAP TO GO ON", c, 156, PAL.text, opt);
   }
 
   drawTimeUp(ctx) {

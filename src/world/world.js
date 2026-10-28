@@ -13,6 +13,7 @@ import { Sky } from './sky.js';
 const MAX_DROPS = 500;
 const MAX_RIPPLES = 160;
 const RING_LAG = 0.16;
+const PRINT_LIFE = 6; // seconds a footprint lasts
 
 // The street: scrolls down at `speed`, receives rain, keeps ripples, splashes,
 // puddles, props and animals. `umbrellas` is set by the scene so drops can land
@@ -29,6 +30,7 @@ export class World {
     this.softFlash = false; // gentler lightning (accessibility)
     this.wetSlow = 1; // speed factor in puddles and mud (Hard: < 1)
     this.drips = [];
+    this.prints = []; // footprints in snow and sand: { x, y, age, her }
     this.refl = null;
     this.t = 0;
     this.scrollY = 0;
@@ -207,9 +209,23 @@ export class World {
       if (p.y - p.ry > PF_H) Object.assign(p, this.newPuddle(-rand(10, 120)));
     }
 
+    for (const p of this.prints) {
+      p.y += sc;
+      p.age += dt;
+    }
+    this.prints = this.prints.filter((p) => p.age < PRINT_LIFE && p.y < PF_H + 4);
     this.decor?.update(dt, sc);
     this.animals?.update(dt, sc);
-    this.obstacles?.update(sc);
+    this.obstacles?.update(sc, dt);
+  }
+
+  // A footprint, where the ground takes one (snow and sand). `her` tints it
+  // faintly red. Returns whether the ground took it.
+  leavePrint(x, y, her = false) {
+    if (!this.locAt(y).print || x < GROUND_L + 2 || x > GROUND_R - 2) return false;
+    if (this.prints.length > 240) this.prints.shift();
+    this.prints.push({ x, y, age: 0, her });
+    return true;
   }
 
   takePlayerDrops() {
@@ -387,7 +403,23 @@ export class World {
     }
     this.drawPuddles(ctx);
     this.decor.drawFloor(ctx);
+    this.drawPrints(ctx);
     for (let i = 0; i < this.zones.length - 1; i++) this.drawCrosswalk(ctx, this.sy(this.zones[i].b));
+  }
+
+  // Footprints: small dents in the ground's own darker tone (hers with a
+  // faint red), fading away. Never round or bright, so they can't be taken
+  // for her markers.
+  drawPrints(ctx) {
+    for (const p of this.prints) {
+      const loc = this.locAt(p.y);
+      if (!loc.print) continue;
+      ctx.globalAlpha = Math.min(0.9, (1 - p.age / PRINT_LIFE) * 1.2);
+      ctx.fillStyle = p.her ? '#b45a6a' : loc.print;
+      ctx.fillRect(Math.round(p.x), this.sy(p.y), 2, 1);
+      ctx.fillRect(Math.round(p.x), this.sy(p.y) - 1, 1, 1);
+    }
+    ctx.globalAlpha = 1;
   }
 
   // Puddles mirror the umbrellas walking past them: the puddles are drawn

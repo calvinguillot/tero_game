@@ -6,9 +6,10 @@ const MAX_SPEED = 90;
 const ACCEL = 14; // higher = snappier; ~0.07s to reach full speed
 const TWIRL = 0.6;
 
-// A footstep: a small ring, or a proper splash when it lands in a puddle.
-// Returns whether it splashed.
+// A footstep: a print in snow or sand, a small ring, or a proper splash when
+// it lands in a puddle. Returns whether it splashed.
 export function stepRipple(world, x, y, size) {
+  if (world.leavePrint(x, y) && world.locAt(y).precip === 'snow') return false;
   if (world.inPuddle(x, y)) {
     world.addRipple(x, y, size + 5, 2, 0.9);
     world.splash(x, y, 3, PAL.rainTip, false, 35);

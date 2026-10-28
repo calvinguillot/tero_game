@@ -11,10 +11,8 @@ import { menuHud } from './backdrop.js';
 import { MenuScene } from './menu.js';
 
 const HORIZON = 100;
-const RAIL_Y = 150; // the railing, between the promenade and the sea
-const BACK_Y = 166; // the far edge of the promenade
-const WALK_Y = 210; // where the umbrellas' handles touch the stones
-const FRONT_Y = 222; // the near edge, then the sea wall
+const SHORE_Y = 152; // where the waves reach, on average
+const WALK_Y = 204; // where the umbrellas' handles touch the sand
 const R = 18; // umbrella size
 const CREDITS = [
   'A RAINY DAY',
@@ -45,51 +43,72 @@ function mix(a, b, k) {
 }
 
 // An umbrella seen from the side, as a pixel sprite: a scalloped dome, the
-// shaft and the J of the handle. `lean` shifts the canopy over the handle;
-// `open` (0..1) folds it down to a closed one. Cached by its parameters.
+// shaft and the J of the handle, in any of the umbrella styles (see STYLES
+// in render/umbrella.js). `lean` shifts the canopy over the handle; `open`
+// (0..1) folds it down to a closed one. Cached by its parameters.
 const sideCache = new Map();
-function sideUmbrella(color, r, lean, open) {
+function sideUmbrella(color, style, r, lean, open) {
   lean = Math.round(lean);
   open = Math.round(open * 4) / 4;
-  const key = `${color}|${r}|${lean}|${open}`;
+  const key = [color, style, r, lean, open].join('|');
   let s = sideCache.get(key);
   if (s) return s;
   const pal = UMBRELLA_COLORS[color];
   const w = r * 2 + 8;
-  const h = Math.round(r * 2.3) + 6;
+  const h = Math.round(r * 2.3) + 8;
   const b = new PixBuf(w, h);
   const cx = w / 2 + lean;
   const rw = lerp(r * 0.35, r, open); // canopy half-width
-  const rh = lerp(r * 1.0, r * 0.62, open); // canopy height
+  const rh = lerp(r * 1.0, r * (style === 'wagasa' ? 0.5 : 0.62), open); // canopy height
   const top = 3;
+  const body = style === 'bubble' ? 4 : 3;
   // Dome: an ellipse's upper half, with a scalloped hem.
-  b.fillEllipse(cx, top + rh, rw, rh, 3);
-  for (let y = Math.ceil(top + rh); y < h; y++) for (let x = 0; x < w; x++) if (b.get(x, y) === 3) b.set(x, y, 0);
+  b.fillEllipse(cx, top + rh, rw, rh, body);
+  for (let y = Math.ceil(top + rh); y < h; y++) for (let x = 0; x < w; x++) if (b.get(x, y) === body) b.set(x, y, 0);
   const hem = Math.round(top + rh);
-  const n = Math.max(2, Math.round(rw / 3));
-  for (let i = 0; i < n; i++) {
-    const x0 = cx - rw + ((i + 0.5) * 2 * rw) / n;
-    b.fillEllipse(x0, hem, rw / n, 1.5, 3);
+  const n = Math.max(2, Math.round(rw / (style === 'wagasa' ? 2 : 3)));
+  for (let i = 0; i < n; i++) b.fillEllipse(cx - rw + ((i + 0.5) * 2 * rw) / n, hem, rw / n, 1.5, body);
+  const inside = (x, y) => b.get(x, y) === body;
+  if (style === 'stripes') {
+    // Every other panel in the light colour.
+    for (let y = 0; y <= hem + 1; y++) for (let x = 0; x < w; x++) if (inside(x, y) && Math.floor(((x - cx + rw) / (2 * rw)) * n) % 2) b.set(x, y, 4);
+  } else if (style !== 'bubble') {
+    b.fillEllipse(cx - rw * 0.25, top + rh * 0.55, rw * 0.5, rh * 0.32, 4);
   }
-  // Light on top, ribs, and the tip.
-  b.fillEllipse(cx - rw * 0.25, top + rh * 0.55, rw * 0.5, rh * 0.32, 4);
   for (let i = 1; i < n; i++) b.line(cx, top + 1, cx - rw + (i * 2 * rw) / n, hem, 2);
+  if (style === 'polka') {
+    for (const [fx, fy] of [[-0.55, 0.55], [0.1, 0.35], [0.5, 0.7], [-0.15, 0.8]]) {
+      const x = Math.round(cx + fx * rw);
+      const y = Math.round(top + fy * rh);
+      if (b.get(x, y) > 1) b.set(x, y, 7);
+    }
+  } else if (style === 'wagasa') {
+    // The band near the top and the dark rim of a paper umbrella.
+    const band = Math.round(top + rh * 0.3);
+    for (let x = 0; x < w; x++) {
+      if (b.get(x, band)) b.set(x, band, 2);
+      if (b.get(x, hem)) b.set(x, hem, 2);
+    }
+  } else if (style === 'bubble') {
+    b.line(cx - rw * 0.55, top + rh * 0.7, cx - rw * 0.2, top + rh * 0.25, 7);
+  }
   b.outline(1);
+  if (style === 'frill') for (let x = 0; x < w; x++) if (b.get(x, hem + 1) === 1) b.set(x, hem + 2, x % 2 ? 7 : 1);
   b.set(cx, top - 1, 1);
   b.set(cx, top - 2, 1);
   // Shaft and handle under the middle of the canopy.
   const sx = Math.round(w / 2);
-  for (let y = hem + 1; y < h - 3; y++) b.set(sx, y, 5);
+  for (let y = hem + 2; y < h - 3; y++) b.set(sx, y, 5);
   b.set(sx, h - 3, 6);
   b.set(sx + 1, h - 2, 6);
   b.set(sx + 2, h - 3, 6);
-  s = { canvas: b.toCanvas([null, pal.outline, pal.dark, pal.base, pal.light, '#c8c8d4', HANDLE.base]), ax: sx, ay: h - 2 };
+  s = { canvas: b.toCanvas([null, pal.outline, pal.dark, pal.base, pal.light, '#c8c8d4', HANDLE.base, pal.accent]), ax: sx, ay: h - 2 };
   sideCache.set(key, s);
   return s;
 }
 
-// The end of the story, by the coast at dawn, seen from the side. She stands
-// at the railing looking out to sea. You walk up beside her, the two of you
+// The end of the story, on the beach at dawn, seen from the side. She stands
+// at the water's edge looking out to sea. You walk up beside her, the two of you
 // lean in until the umbrellas touch, the rain eases off and the sun comes up
 // over the water, and you walk on together. Then the credits. Seeing it
 // unlocks Walk Together.
@@ -99,12 +118,15 @@ export class FinaleScene {
     this.theme = 'ending'; // the music changes for the ending
     this.sky = new Sky({ time: 0.97, cycle: 1e9, dayNight: true, weather: 'drizzle' });
     // Enough of a world for the HUD and the rain sounds.
-    this.world = { sky: this.sky, speed: 0, topLocation: { name: 'THE COAST' }, locAt: () => ({}) };
+    this.world = { sky: this.sky, speed: 0, topLocation: { name: 'THE BEACH' }, locAt: () => ({}) };
+    // Your umbrella as you picked it; hers always red, in the same style.
     const s = game.data.settings;
-    this.you = { color: s.color, x: -24, lean: 0, open: 1, bob: 0 };
-    this.her = { color: 'love', x: 128, lean: 0, open: 1, bob: 0 };
+    this.you = { color: s.color, style: s.style, x: -24, lean: 0, open: 1, bob: 0 };
+    this.her = { color: 'love', style: s.style, x: 128, lean: 0, open: 1, bob: 0 };
     this.drops = [];
     this.rings = [];
+    this.prints = []; // their footprints in the sand
+    this.stepT = 0;
     this.t = 0;
     this.rainStopped = false;
     const story = game.data.story;
@@ -140,21 +162,27 @@ export class FinaleScene {
     this.sky.update(dt);
     this.sky.takeEvents();
     this.updateRain(dt);
+    // Footprints in the sand behind whoever is walking.
+    if (moving && (this.stepT -= dt) <= 0) {
+      this.stepT = 0.17;
+      this.side = -(this.side || 1);
+      for (const u of t > 15 ? [you, her] : [you]) this.prints.push({ x: u.x + this.side * 2, t });
+    }
     if (t > 2 && (input.hit('confirm') || input.hit('action') || input.hit('pause'))) {
       if (t < ROLL_AT) this.t = ROLL_AT;
       else if (this.rollDone) this.game.go(new MenuScene(this.game));
     }
   }
 
-  // Rain over the sea and the promenade: streaks, rings on the water, and
-  // splashes on the stones. It thins away when the weather turns.
+  // Rain over the sea and the beach: streaks, rings on the water, and dark
+  // specks on the sand. It thins away when the weather turns.
   updateRain(dt) {
     const rate = 70 * this.sky.p.rain;
     this.rainAcc = (this.rainAcc ?? 0) + rate * dt;
     while (this.rainAcc >= 1) {
       this.rainAcc -= 1;
       const far = Math.random() < 0.5;
-      this.drops.push({ x: rand(-10, PF_W + 10), y: rand(-20, 0), far, land: far ? rand(HORIZON + 4, RAIL_Y - 2) : rand(BACK_Y + 2, FRONT_Y - 2) });
+      this.drops.push({ x: rand(-10, PF_W + 10), y: rand(-20, 0), far, land: far ? rand(HORIZON + 4, SHORE_Y - 10) : rand(SHORE_Y + 8, PF_H - 4) });
     }
     for (const d of this.drops) {
       d.y += (d.far ? 120 : 190) * dt;
@@ -216,9 +244,9 @@ export class FinaleScene {
     }
     // The sea, with rolling bands of light and a path of sunlight.
     ctx.fillStyle = mix('#1c3450', '#3a6a8c', dawn);
-    ctx.fillRect(0, HORIZON, PF_W, RAIL_Y - HORIZON);
-    for (let y = HORIZON + 2; y < RAIL_Y; y += 3) {
-      const depth = (y - HORIZON) / (RAIL_Y - HORIZON);
+    ctx.fillRect(0, HORIZON, PF_W, SHORE_Y - HORIZON);
+    for (let y = HORIZON + 2; y < SHORE_Y - 8; y += 3) {
+      const depth = (y - HORIZON) / (SHORE_Y - HORIZON);
       ctx.fillStyle = mix('#2c4a68', '#6aa0c0', dawn);
       for (let x = 0; x < PF_W; x += 9 + Math.round(depth * 8)) {
         const wx = (x + Math.sin(t * 0.8 + y * 0.7) * 6 + t * (4 + depth * 6)) % PF_W;
@@ -239,40 +267,53 @@ export class FinaleScene {
       const rx = 1 + Math.round(r.t * 6);
       ctx.drawImage(ellipseSprite(rx, 1, '#6a98b8', false), Math.round(r.x) - rx, Math.round(r.y) - 1);
     }
-    // The railing behind them, then the promenade's stones and the sea wall.
-    ctx.fillStyle = mix('#1a1a26', '#3a3040', dawn);
-    ctx.fillRect(0, RAIL_Y, PF_W, 2);
-    ctx.fillRect(0, RAIL_Y + 7, PF_W, 1);
-    for (let x = 6; x < PF_W; x += 16) ctx.fillRect(x, RAIL_Y, 2, BACK_Y - RAIL_Y);
-    ctx.fillStyle = mix('#4a4a5c', '#8a7a80', dawn);
-    ctx.fillRect(0, BACK_Y, PF_W, FRONT_Y - BACK_Y);
-    ctx.fillStyle = mix('#3e3e50', '#76686e', dawn);
-    for (let y = BACK_Y + 4; y < FRONT_Y; y += 7) {
-      const off = ((y - BACK_Y) / 7) % 2 ? 0 : 11;
-      for (let x = off; x < PF_W; x += 22) ctx.fillRect(x, y, 20, 1);
-    }
-    ctx.fillStyle = mix('#2a2a38', '#4a3c44', dawn);
-    ctx.fillRect(0, FRONT_Y, PF_W, PF_H - FRONT_Y);
-    ctx.fillStyle = mix('#5a5a6c', '#a08c8c', dawn);
-    ctx.fillRect(0, FRONT_Y, PF_W, 2);
-    // Wet stones shine, and the sunrise shows in them.
-    ctx.globalAlpha = 0.6;
-    ctx.drawImage(ellipseSprite(16, 1, dawn > 0.3 ? '#e0b088' : '#7a8aa8', true), 34, WALK_Y + 6);
-    ctx.drawImage(ellipseSprite(11, 1, dawn > 0.3 ? '#e0b088' : '#7a8aa8', true), 146, WALK_Y + 4);
-    ctx.globalAlpha = 1;
-    // The two of them, with shadows on the stones.
-    for (const u of [this.her, this.you]) {
-      ctx.globalAlpha = 0.35;
-      ctx.drawImage(ellipseSprite(R - 4, 2, '#1a1a26', true), Math.round(u.x) - R + 4, WALK_Y - 1);
+    // The beach: waves wash up the sand and draw back, leaving it wet and
+    // shining with the sky.
+    const reach = SHORE_Y + Math.sin(t * 0.7) * 5;
+    const sea = mix('#1c3450', '#3a6a8c', dawn);
+    ctx.fillStyle = mix('#8a7656', '#d8b884', dawn);
+    ctx.fillRect(0, SHORE_Y - 8, PF_W, PF_H - SHORE_Y + 8);
+    ctx.fillStyle = mix('#5e5a58', '#b89070', dawn);
+    ctx.fillRect(0, SHORE_Y - 8, PF_W, 22);
+    if (dawn > 0) {
+      ctx.globalAlpha = dawn * 0.6;
+      ctx.fillStyle = '#ffe2a0';
+      for (let y = SHORE_Y; y < SHORE_Y + 14; y += 2) ctx.fillRect(132 + Math.round(Math.sin(y + t * 2) * 3), y, 6, 1);
       ctx.globalAlpha = 1;
-      const s = sideUmbrella(u.color, R, u.lean, u.open);
+    }
+    for (let x = 0; x < PF_W; x++) {
+      const edge = Math.round(reach + Math.sin(x * 0.12 + t * 1.3) * 1.5);
+      ctx.fillStyle = sea;
+      ctx.fillRect(x, SHORE_Y - 8, 1, edge - SHORE_Y + 8);
+      ctx.fillStyle = '#e8f4f6';
+      ctx.fillRect(x, edge, 1, 1);
+      if ((x + Math.floor(t * 8)) % 7 < 3) ctx.fillRect(x, edge - 2, 1, 1);
+    }
+    // A few shells and a strand of seaweed.
+    ctx.fillStyle = mix('#a89070', '#f4e0d0', dawn);
+    for (const [x, y] of [[22, 222], [70, 232], [150, 216], [118, 236]]) ctx.fillRect(x, y, 2, 1);
+    ctx.fillStyle = mix('#3a4a30', '#6a8a4a', dawn);
+    for (let x = 40; x < 56; x++) ctx.fillRect(x, 226 + Math.round(Math.sin(x * 0.8)), 1, 1);
+    // Rain specks on the sand, and footprints, fading.
+    const dent = mix('#6a5a44', '#a88a60', dawn);
+    ctx.fillStyle = dent;
+    for (const r of this.rings) if (!r.far && r.t < 0.4) ctx.fillRect(Math.round(r.x), Math.round(r.y), 1, 1);
+    for (const p of this.prints) {
+      ctx.globalAlpha = clamp(1 - (t - p.t) / 14, 0, 0.8);
+      ctx.fillRect(Math.round(p.x), WALK_Y + 1, 2, 1);
+    }
+    ctx.globalAlpha = 1;
+    // The two of them, with soft shadows on the sand.
+    for (const u of [this.her, this.you]) {
+      ctx.globalAlpha = 0.3;
+      ctx.drawImage(ellipseSprite(R - 4, 2, '#3a2a1a', true), Math.round(u.x) - R + 4, WALK_Y - 1);
+      ctx.globalAlpha = 1;
+      const s = sideUmbrella(u.color, u.style, R, u.lean, u.open);
       ctx.drawImage(s.canvas, Math.round(u.x) - s.ax, WALK_Y + u.bob - s.ay);
     }
     // Rain in front of everything; splashes on the walk.
     ctx.fillStyle = '#9ac4e0';
     for (const d of this.drops) ctx.fillRect(Math.round(d.x), Math.round(d.y), 1, d.far ? 2 : 4);
-    ctx.fillStyle = '#c6e4f4';
-    for (const r of this.rings) if (!r.far && r.t < 0.15) ctx.fillRect(Math.round(r.x) - 1, Math.round(r.y) - 1, 3, 1);
   }
 
   drawEnd(ctx) {

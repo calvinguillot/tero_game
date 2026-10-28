@@ -6,10 +6,15 @@ import { plate, hint } from '../ui/menu.js';
 import { inPlayfield } from './street.js';
 import { menuHud } from './backdrop.js';
 import { MenuScene } from './menu.js';
+import { CHAPTERS } from '../game/chapters.js';
+import { UMBRELLA_COLORS } from '../render/palette.js';
 
 const SHOWN = 8;
+// One page per arcade level, then Story's records.
+const PAGES = [...DIFFICULTY_KEYS, 'story'];
 
-// Best arcade runs per level; left/right switches level.
+// Best arcade runs per level, and Story's records per chapter; left/right
+// switches page.
 export class ScoresScene {
   constructor(game) {
     this.game = game;
@@ -22,7 +27,7 @@ export class ScoresScene {
     const { input } = this.game;
     this.t += dt;
     this.bd.update(dt);
-    const n = DIFFICULTY_KEYS.length;
+    const n = PAGES.length;
     if (input.hit('left')) this.level = (this.level + n - 1) % n;
     if (input.hit('right')) this.level = (this.level + 1) % n;
     const tap = input.takeTap();
@@ -44,7 +49,8 @@ export class ScoresScene {
       this.bd.draw(ctx);
       const opt = { shadow: PAL.textShadow, align: 'center' };
       drawText(ctx, 'HIGH SCORES', 90, 14, PAL.text, { ...opt, scale: 2 });
-      const key = DIFFICULTY_KEYS[this.level];
+      const key = PAGES[this.level];
+      if (key === 'story') return this.drawStory(ctx);
       drawText(ctx, `< ${DIFFICULTY[key].name} >`, 90, 34, PAL.text, opt);
       plate(ctx, 14, 46, 152, SHOWN * 16 + 8);
       const list = this.game.data.highScores.arcade[key] || [];
@@ -61,7 +67,27 @@ export class ScoresScene {
         drawText(ctx, e.date.slice(2), 158, y + 2, col, { shadow: PAL.textShadow, align: 'right' });
       });
       drawText(ctx, 'SMALL BLUE NUMBER: CLOSE! COUNT', 90, 202, PAL.rippleMid, opt);
-      hint(ctx, 'LEFT/RIGHT: LEVEL   ESC: BACK', 214);
+      hint(ctx, 'LEFT/RIGHT: PAGE   ESC: BACK', 214);
     });
+  }
+
+  // Story: for each chapter cleared, the fastest finish, the most CLOSE! and
+  // the hearts (finished runs only).
+  drawStory(ctx) {
+    const opt = { shadow: PAL.textShadow };
+    const story = this.game.data.story;
+    drawText(ctx, '< STORY >', 90, 34, PAL.text, { ...opt, align: 'center' });
+    plate(ctx, 14, 44, 152, CHAPTERS.length * 18 + 6);
+    CHAPTERS.forEach((ch, i) => {
+      const y = 50 + i * 18;
+      const r = story.records?.[i];
+      const open = i < story.unlocked;
+      drawText(ctx, `${i + 1} ${open ? ch.title : '? ? ?'}`, 20, y, r ? PAL.text : PAL.textDim, opt);
+      const hearts = story.stars[i] ?? 0;
+      for (let h = 0; h < 3 && hearts; h++) drawText(ctx, '*', 140 + h * 7, y, h < hearts ? UMBRELLA_COLORS.love.base : PAL.keySide, opt);
+      const line = r?.time != null ? `${r.time.toFixed(1)} S   CLOSE! ${r.closes}` : open ? 'NOT FINISHED YET' : '';
+      drawText(ctx, line, 28, y + 8, r ? PAL.rippleMid : PAL.textDim, opt);
+    });
+    hint(ctx, 'LEFT/RIGHT: PAGE   ESC: BACK', 214);
   }
 }

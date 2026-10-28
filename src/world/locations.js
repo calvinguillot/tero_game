@@ -1,7 +1,8 @@
 // Each location recolours the street and decides which walls, side props,
 // ground details, things overhead and animals show up. Weights are relative.
 // Optional: wallRight (a different right-hand wall), precip ('snow' instead
-// of rain), wet (puddle size factor; dry sand drinks the rain).
+// of rain), wet (puddle size factor; dry sand drinks the rain), print (the
+// colour of footprints pressed into snow or sand, where they show).
 export const LOCATIONS = {
   town: {
     key: 'town',
@@ -89,6 +90,7 @@ export const LOCATIONS = {
     wall: 'snowfence',
     pattern: 'none',
     precip: 'snow',
+    print: '#6e90a8',
     side: { tree: 2, bigtree: 1, snowman: 2, drift: 3, lamp: 2 },
     floor: { prints: 4, snowdrift: 3, drain: 1 },
     overhead: { branches: 2, bunting: 1 },
@@ -106,6 +108,7 @@ export const LOCATIONS = {
     wallRight: 'surf',
     pattern: 'none',
     wet: 0.8,
+    print: '#86704a',
     side: { tree: 3, beachbrella: 2, bucket: 2, tuft: 3 },
     floor: { shells: 4, seaweed: 3 },
     overhead: { fronds: 2, bunting: 1 },
@@ -122,6 +125,7 @@ export const LOCATIONS = {
     wall: 'adobe',
     pattern: 'none',
     wet: 0.55,
+    print: '#946644',
     side: { cactus: 4, rock: 3, pot: 2, drytuft: 3 },
     floor: { cracks: 4, sanddrift: 3 },
     overhead: { sail: 2 },

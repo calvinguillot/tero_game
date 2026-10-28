@@ -7,22 +7,25 @@ It runs in the browser using plain JavaScript and the Canvas 2D API. All of the 
 ## Features
 
 - **Arcade mode**: three lives, a crowd that speeds up as you score, a lost life back every 100 points (never more than three), and an arcade-style high-score table for each difficulty where you sign your three initials (it also records each run's CLOSE! count). Puddles, mud and drifts slow you down a little, and a bit more on Hard.
-- **Force field**: a shockwave that pushes nearby umbrellas away and snaps them shut, and sweeps the water aside. It recharges over time, and near misses (**CLOSE!**) give it a boost.
+- **Force field**: a shockwave that pushes nearby umbrellas away and snaps them shut, and sweeps the water aside. It also moves obstacles: light ones (barrels, crates, carts, deck chairs, roadworks barriers, logs) slide away, snow piles and sandcastles are blown apart, and fixed ones (planters, benches, fountains, rocks, wall outcrops) only shudder. It recharges over time, and near misses (**CLOSE!**) give it a boost.
 - **SUN RUSH**: every 15 CLOSE! near misses (10 on Easy, 20 on Hard), the sun breaks through for five seconds, even at night. Everyone shuts their umbrella, you run with your own umbrella closed and glowing, nothing can hurt you, and every umbrella you pass or bump scores.
 - **Story mode, "Finding Love"**: eight chapters across one day and night, following a red umbrella through every place in town.
-  - **A race to the finish:** each chapter has a fixed hour and weather and a finish line at the end of the street (red paper lanterns over a band of pale paving), to be reached before time runs out.
-  - **Speed:** every chapter starts at the same pace and builds up to its top speed, from 1× in the first chapter to 5× in the last. Chapters also get longer and busier.
+  - **A race to the finish:** each chapter has a fixed hour and weather and a finish line at the end of the street (red paper lanterns over a band of pale paving), to be reached before the 90-second clock runs out.
+  - **Speed:** every chapter starts at 1× and builds up smoothly to its top speed: 2×, 2×, 3×, 3×, 5×, 5×, 7×, 7×. Faster chapters are longer and busier.
   - **Her:** she's the reason you run, not someone to catch. She runs off before each chapter starts, and after that you only glimpse her far up the street now and then, as clearly as the weather allows (fog and dark blur her; in storms only lightning shows her).
-  - **Time instead of lives:** a bump costs 3 seconds. The ripples, petals and footprints she leaves behind add 2 seconds each.
+  - **Time instead of lives:** a bump costs 3 seconds. Her markers (the same small red ring in every chapter) add 2 seconds each.
   - **No checkpoints:** run out of time and the chapter starts over. Cleared chapters stay unlocked.
   - **Hearts:** 1–3 per chapter, by the time you have to spare.
-  - **No words:** short scenes before each chapter show where she went. The ending is a side-on scene by the coast at dawn, with its own music.
+  - **Records:** for each chapter you finish, the best race time (the time the clock counted: real time plus bump penalties minus marker bonuses) and the most CLOSE! are kept, and shown on the chapter screen and on the STORY page of High Scores. Failed runs never count.
+  - **No words:** short scenes before each chapter show where she went. After the last chapter the ending follows by itself: a side-on scene on the beach at dawn, with its own music. Both umbrellas use the style you picked: yours in your color, hers always red.
 - **Obstacles**: planters, benches, logs, snowbanks, crates, cacti and the like, plus stretches where the wall juts out, in every mode. Each place has its own. They come in patterns that always leave a way through, show a small light at night and an outline in fog. In Arcade a bump costs a life, in Story it costs time, and in Zen they're just solid and you slide around them.
+- **Footprints**: in the Snowy Village, on the Beach and in the Desert, you, the walkers, the animals and she leave footprints that fade after a few seconds (hers faintly red). They're never round or bright, so they can't be mistaken for her markers.
 - **Walk Together** (unlocked by finishing the story): in Zen, she walks with you. You use WASD or the stick and she uses the arrow keys, so two people can play on one keyboard. Left alone, she walks beside you at your pace.
 - **Two-player Arcade** (also unlocked by the story): turn TOGETHER on in Arcade. P1 plays with WASD and Space, P2 with the arrows and Enter. Each has three lives and a force field, and the one with more CLOSE! when you're both out wins. Both players' CLOSE! fill one shared SUN RUSH meter. Results aren't saved; solo Arcade keeps the high scores.
 - **Zen mode**: nothing to win and nothing to lose. There's no score, lives, force field or game over, and bumping someone is just a wobble. The crowd keeps Easy's gentle pace with no hurriers, the day is twice as long, and the weather (storms included) changes half as often. Drops on your umbrella play soft notes in the music's key. When you leave, the game tells you how far you walked and through how many places; it isn't saved anywhere.
 - **Photo mode**: in any mode, pause and pick PHOTO (or press C). The street holds still while the rain keeps falling, and Space or a tap saves a PNG of the playfield at 4× size.
 - **Attract mode**: leave the title screen alone and the game plays a demo of itself.
+- **Resetting saved data**: Settings has RESET STORY (back to chapter 1: clears hearts, Story records and the ending, which locks Walk Together and two-player again; keeps Arcade scores and settings) and RESET ALL DATA (everything back to defaults: progress, all records and scores, initials, umbrella and settings). Each one asks first, with NO selected, and lists what it will erase.
 - **Walker types**: commuters, wanderers, elders, hurriers, kids and pairs, each with its own readable behavior. Some telegraph their moves with a `!` first.
 - **Places**: eight of them, in a loop: Old Town → Rainy Park → Deep Forest → Snowy Village → Harbor → Beach → Desert → Market St. Each has its own walls, ground, props and animals.
   - **Snowy Village:** snow falls instead of rain, the puddles are ice, and the rain sound turns to a soft hush.
@@ -114,20 +117,21 @@ Places change by distance walked rather than by score. The world counts drops th
 **Story** (`scenes/story.js`, chapters in `game/chapters.js`) is another subclass of the arcade scene.
 - **What it overrides:**
   - `tuning()`: the chapter's crowd and weather.
-  - `streetSpeed()`: the chapter's pace at how far you've got (`speedAt` in `game/chapters.js`).
+  - `streetSpeed()`: the chapter's pace at how far you've got (`speedAt` in `game/chapters.js`), rising smoothly from its start speed to its top speed.
   - `obstacleDensity()`: the chapter's density, rising from the first chapter to the last.
   - `checkNpcs()`: a bump costs time.
   - `walkers`: she's drawn and lit with you, and in the storm only while lightning flashes.
-- **What it adds:** her opening run and the glimpses of her, the clock, the keepsakes she drops (they ride the street and are drawn through a `ground` hook under the umbrellas), the finish line and its lanterns, and the end cards.
-- **Tuning in one place:** the `STORY` block in `game/chapters.js` holds the base speed, the final speed multiplier (5), how the pace builds within a chapter, the first and last chapter's length, crowd and obstacle density, and the time slack. Each chapter's values are spread evenly between the first and last, and its time limit is worked out from its own speed curve, so changing one number reshapes every chapter consistently.
+- **What it adds:** her opening run and the glimpses of her, the clock, the markers she drops (they ride the street and are drawn through a `ground` hook under the umbrellas), the finish line and its lanterns, records, and the end cards.
+- **The finish line** is a fixed place on the street: when the race starts, the scene stores the world scroll at which the line will reach the finish row (`finishAt`), and every frame its screen row is worked out from the world scroll (`finishY`). So it scrolls in, passes under you, and keeps scrolling away like any other part of the street after you've crossed.
+- **Tuning in one place:** see `STORY` in the configuration reference below. A chapter's length isn't set by hand: it follows from the 90-second clock, the chapter's speed curve and its slack, so every chapter stays winnable when you change the numbers.
 - **Around it:**
   - `scenes/vignette.js` scripts the wordless scene before each chapter as functions of time.
-  - `scenes/finale.js` plays the ending, side-on: a promenade by the sea, side-view umbrella sprites, rain on the water, the sunrise, and the credits. It sets `theme = 'ending'`, and the audio swaps the generated music for a short composed tune (`playEnding`).
+  - `scenes/finale.js` plays the ending, side-on: a beach with waves washing up the sand, side-view umbrella sprites (`sideUmbrella`, which draws every umbrella style), footprints in the sand, rain that stops as the sun comes up, and the credits. Your umbrella uses the color and style from your settings; hers uses the `love` red and your style. It sets `theme = 'ending'`, and the audio swaps the generated music for a short composed tune (`playEnding`).
   - `scenes/storymenu.js` is the chapter path.
-- **Saving:** progress (chapters unlocked, hearts, best time left, whether the ending was seen) is saved under `story`.
+- **Saving:** progress is saved under `story`: chapters unlocked, hearts, `records` (per chapter, `{ time, closes }`, finished runs only) and whether the ending was seen.
 - **Red is hers:** her umbrella uses the `love` palette, which isn't a player color, so nothing else in the game is ever red.
 
-**Obstacles** (`world/obstacles.js`) belong to the world. The scene sets a density each frame, and patterns (single, pair, chicane, narrowing) are spawned by distance, with a minimum opening and spacing set in `OBSTACLES`. Sprites are built from a few shapes (block, mound, log, posts) with details per kind. The street draw sorts obstacles together with the umbrellas by where they stand. Walkers step around them and spawn away from them, and the demo autopilot avoids them. What a touch does is the scene's `hitObstacle()`.
+**Obstacles** (`world/obstacles.js`) belong to the world. The scene sets a density each frame, and patterns (single, pair, chicane, narrowing) are spawned by distance, with a minimum opening and spacing set in `OBSTACLES`. Sprites are built from a few shapes (block, mound, log, posts, small fir) with details per kind, outlined in a darker shade of their own color. Each kind says what the force field does to it (`move`: slide, scatter or fixed, and `mass`); a pushed obstacle slides, slows down, stops at the walls, and is steered to the wall if it would close a gap below the minimum opening. The street draw sorts obstacles together with the umbrellas by where they stand. Walkers step around them and spawn away from them, and the demo autopilot avoids them. What a touch does is the scene's `hitObstacle()`.
 
 **Two-player Arcade** (`scenes/duo.js`) is a subclass of the arcade scene with a second `Player`, a second force field (the scene's `fields` list), raw key presses (`input.hitKey`) for the two fire buttons, and its own `checkNpcs()`, which credits each CLOSE! to whoever squeezed past.
 
@@ -235,19 +239,98 @@ The HUD panels are drawn outside the playfield in the same frame.
 
 ### Saving
 
-Settings, your last initials and high scores (score, initials and date) are saved as one JSON object in `localStorage` under `rainyday.v1`. Every read and write is guarded, so the game still runs if storage is unavailable, and new settings are merged over the defaults when an older save is loaded.
+Settings, your last initials, Arcade high scores (score, initials, CLOSE! and date) and Story progress and records are saved as one JSON object in `localStorage` under `rainyday.v1` (`src/core/storage.js`). Two-player results and Zen walks aren't saved. `resetStory()` and `resetAll()` in the same file back the two Settings buttons. Every read and write is guarded, so the game still runs if storage is unavailable, and new settings are merged over the defaults when an older save is loaded.
 
-## Tweaking
+## Configuration reference
+
+Every tunable value, where it lives and its current default. Change the value in the file and the dev server reloads. All paths are under `src/`.
+
+### Story mode: `STORY` in `game/chapters.js`
+
+| Value | Default | What it does |
+|---|---|---|
+| `STORY.startTime` | `90` | Seconds on the clock at the start of every chapter. |
+| `STORY.baseSpeed` | `34` | The street's pace at 1×, in px/s. |
+| `STORY.levels` | `[{ startSpeed: 1, maxSpeed: 2 }, { 1, 2 }, { 1, 3 }, { 1, 3 }, { 1, 5 }, { 1, 5 }, { 1, 7 }, { 1, 7 }]` | Per chapter, the pace it starts at and the pace it builds up to, as multiples of `baseSpeed`. |
+| `STORY.rampPower` | `1.6` | How the pace builds within a chapter: 1 = evenly; higher = slower at first, faster near the end. The curve is continuous (`speedAt()`), so there are no jumps. |
+| `STORY.slackFirst` / `slackLast` | `1.25` / `1.4` | Sets each chapter's length: walking it cleanly takes `startTime / slack` seconds, and the rest of the clock is room for bumps. Raise it to make chapters shorter and easier. |
+| `STORY.hitCost` | `3` | Seconds lost per bump (a walker or an obstacle). |
+| `STORY.keepsakeTime` | `2` | Seconds gained per marker of hers picked up. |
+| `STORY.trailEvery` / `dropEvery` | `6` / `1.2` | Seconds between markers waiting up the street, and between markers she drops while in view. |
+| `STORY.sightEvery` / `sightFor` | `[12, 20]` / `[1.5, 3]` | Seconds between glimpses of her, and how long each lasts (random within the range). |
+| `STORY.spawnFirst` / `spawnLast` | `1.6` / `0.75` | Seconds between walkers in the first and last chapter. |
+| `STORY.npcSpeedFirst` / `npcSpeedLast` | `0.8` / `1.2` | How fast walkers walk (× normal), first to last chapter. |
+| `STORY.obstaclesFirst` / `obstaclesLast` | `0.2` / `0.9` | Obstacle density (0..1), first to last chapter. |
+| `PLAN` | in `game/chapters.js` | Each chapter's title, place, hour, weather, special and crowd mix. |
+
+Values given as first/last are spread evenly across the chapters. With the defaults, the lengths come out at about 3200, 3200, 3700, 3700, 4600, 4500, 5200 and 5100 px. The finish line is placed at that distance from where the race starts (`finishAt` in `scenes/story.js`). Other Story constants in `scenes/story.js`: `RUN_OFF = 2.2` (seconds she takes to run off before "GO!"), `HOME_Y = 190` (the screen row the finish line reaches when the distance is done).
+
+### Arcade: `scenes/play.js` and `game/difficulty.js`
+
+| Value | Default | What it does |
+|---|---|---|
+| `START_LIVES` (`scenes/play.js`) | `3` | Lives at the start of a run. |
+| `MAX_LIVES` (`scenes/play.js`) | `3` | The most lives you can have; the HUD always shows this many slots. |
+| `EXTRA_LIFE_EVERY` (`scenes/play.js`) | `100` | Points between bonus lives (a bonus only refills a lost one). |
+| `POINTS_PER_LOCATION` (`scenes/play.js`) | `25` | Points between places. |
+| `NEAR_MISS` (`scenes/play.js`) | `2.0` | How close a pass must be to count as a CLOSE! (in hitbox distances, squared). |
+| `CLOSE_BONUS` (`scenes/play.js`) | `2` | Seconds of force-field recharge per CLOSE!. |
+| `RUSH_TIME` / `RUSH_SPEED` (`scenes/play.js`) | `5` / `1.7` | SUN RUSH length in seconds, and the street's speed multiplier during it. |
+| `DAY_LENGTH` (`scenes/play.js`) | `240` | Seconds for a full day. |
+| `DIFFICULTY.<level>.rushEvery` (`game/difficulty.js`) | Easy `10`, Normal `15`, Hard `20` | CLOSE! needed for a SUN RUSH (solo and two-player). |
+| `DIFFICULTY.<level>.speedStart` / `speedMax` | Easy 30/70, Normal 40/95, Hard 50/120 | Street speed in px/s, at the start and at full intensity. |
+| `DIFFICULTY.<level>.spawnStart` / `spawnMin` | Easy 1.6/0.7, Normal 1.3/0.5, Hard 1.0/0.38 | Seconds between walkers, at the start and at full intensity. |
+| `DIFFICULTY.<level>.npcSpeed`, `sway`, `unlock` | see the file | Walker speed and sway, and how soon tougher walkers appear. |
+| `DIFFICULTY.<level>.hitScale` / `invuln` | see the file | Hitbox size, and seconds you can't be hit after a bump. |
+| `DIFFICULTY.<level>.recharge` | Easy `8`, Normal `12`, Hard `16` | Force-field recharge, in seconds. |
+| `DIFFICULTY.<level>.wetSlow` | Easy `0.9`, Normal `0.88`, Hard `0.8` | Speed factor in puddles, mud and drifts. |
+| `intensity()` (`game/difficulty.js`) | `1 − e^(−score/60)` | How fast Arcade ramps up with the score. |
+
+Two-player Arcade (`scenes/duo.js`): `LIVES = 3` per player and the fire keys in `FIRE`. It uses the same `DIFFICULTY` table.
+
+### Force field: `game/forcefield.js`, `game/npc.js`, `world/obstacles.js`
+
+| Value | Default | What it does |
+|---|---|---|
+| `FIELD_RADIUS` (`game/forcefield.js`) | `64` | px the front sweeps out to. |
+| `EXPAND` / `HOLD` (`game/forcefield.js`) | `0.35` / `0.45` | Seconds the front takes to expand, and the dome lingers after. |
+| Recharge | `DIFFICULTY.<level>.recharge` | See Arcade above; in Story chapters it's Normal's `12`. |
+| Push on walkers (`Npc.shoo` in `game/npc.js`) | `230` sideways, `140` along the street | How hard umbrellas are shoved, in px/s. |
+| `OBSTACLES.fieldPush` (`world/obstacles.js`) | `180` | px/s given to a sliding obstacle of mass 1 at point blank (divided by its `mass`, less with distance). |
+| `move` / `mass` per kind (`KINDS` in `world/obstacles.js`) | e.g. barrel slide/1, cart slide/3, log slide/5, snow pile scatter, fountain fixed | What the field does to each obstacle. |
+
+### Obstacles: `OBSTACLES` in `world/obstacles.js`
+
+| Value | Default | What it does |
+|---|---|---|
+| `OBSTACLES.minGap` | `110` | px of street between patterns, at the very least. |
+| `OBSTACLES.minGapTime` | `1.1` | ... and seconds between them at the current pace, so fast streets stay readable. |
+| `OBSTACLES.spread` | `300` | Extra px between patterns when the density is low. |
+| `OBSTACLES.minOpening` | `70` | px: the narrowest way through any pattern (about 2.4 umbrellas). Pushed obstacles respect it too. |
+| `OBSTACLES.playerScale` | `0.8` | How much of the umbrella's footprint counts against obstacles. |
+| Density | Arcade `0.25 + 0.75 × intensity` (`obstacleDensity()` in `scenes/play.js`), Zen `0.3` (`scenes/zen.js`), Story per chapter (`STORY` above) | How busy the street is with obstacles. |
+| `KINDS`, `OUTCROPS`, `PLACE` | in the file | Each obstacle's shape, size, colors and detail; wall outcrops per place; which obstacles each place uses. |
+
+### Walkers, Zen, player
+
+| Value | Default | What it does |
+|---|---|---|
+| `NPC_TYPES` (`game/npc.js`) | see the file | Each walker type's size, walking speed, sway and special move. |
+| `spawnWeights()` (`game/difficulty.js`) | see the file | Which walker comes next in Arcade, by score. Story uses each chapter's `crowd` and Zen its `CROWD`. |
+| `MAX_SPEED` / `ACCEL` (`game/player.js`) | `90` / `14` | Your top speed in px/s, and how snappy you are. |
+| `DAY_LENGTH`, `WEATHER_PACE`, `PLACE_EVERY` (`scenes/zen.js`) | `480`, `2`, `2700` | Zen's day length, how much slower its weather changes, and px walked per place. |
+| `CHANGE_EVERY` (`world/sky.js`) | `[30, 45]` | Seconds between weather changes (times the scene's pace). |
+
+### Look and data
 
 | What | Where |
 |---|---|
-| Difficulty numbers | `src/game/difficulty.js` |
-| Walker personalities | `NPC_TYPES` in `src/game/npc.js` |
-| Locations (colors, props, animals) | `src/world/locations.js` |
-| Weather and the day's light | `WEATHER` and `DAY` in `src/world/sky.js` |
-| Umbrella colors and styles | `src/render/palette.js` and `STYLES` in `src/render/umbrella.js` |
-| Force field radius and timing | `src/game/forcefield.js` |
-| Scoring, lives, near misses, SUN RUSH | Constants at the top of `src/scenes/play.js` |
+| Umbrella colors | `UMBRELLA_COLORS` and `PLAYER_COLORS` in `render/palette.js`. `love` is her red and isn't selectable. |
+| Umbrella styles | `STYLES` in `render/umbrella.js` (top-down) and `sideUmbrella()` in `scenes/finale.js` (side view, for the ending). Both read the style you picked (`settings.style`); she always uses `love` with your style. |
+| Places | `LOCATIONS` and `LOCATION_ORDER` in `world/locations.js` (`print` sets the footprint color where the ground takes prints). |
+| Weather and the day's light | `WEATHER` and `DAY` in `world/sky.js`. |
+| Footprints | `PRINT_LIFE = 6` (seconds) in `world/world.js`. |
+| Save data | `KEY = 'rainyday.v1'` and `DEFAULTS` in `core/storage.js`; `resetStory()` and `resetAll()` for the Settings buttons. |
 
 ## Credits
 
