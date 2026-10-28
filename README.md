@@ -126,7 +126,7 @@ Places change by distance walked rather than by score. The world counts drops th
 - **Tuning in one place:** see `STORY` in the configuration reference below. A chapter's length isn't set by hand: it follows from the 90-second clock, the chapter's speed curve and its slack, so every chapter stays winnable when you change the numbers.
 - **Around it:**
   - `scenes/vignette.js` scripts the wordless scene before each chapter as functions of time.
-  - `scenes/finale.js` plays the ending, side-on: a beach with waves washing up the sand, side-view umbrella sprites (`sideUmbrella`, which draws every umbrella style), footprints in the sand, rain that stops as the sun comes up, and the credits. Your umbrella uses the color and style from your settings; hers uses the `love` red and your style. It sets `theme = 'ending'`, and the audio swaps the generated music for a short composed tune (`playEnding`).
+  - `scenes/finale.js` plays the ending, side-on: a beach with waves washing up the sand, the two umbrellas drawn with the very same sprite as in the game (`umbrellaSprite`), footprints in the sand, rain that stops as the sun comes up, and the credits. Your umbrella uses the color and style from your settings; hers uses the `love` red and your style. It can't be skipped (it's short); once the credits have rolled, a press goes back to the menu. It sets `theme = 'ending'`, and the audio swaps the generated music for a short composed tune (`playEnding`).
   - `scenes/storymenu.js` is the chapter path.
 - **Saving:** progress is saved under `story`: chapters unlocked, hearts, `records` (per chapter, `{ time, closes }`, finished runs only) and whether the ending was seen.
 - **Red is hers:** her umbrella uses the `love` palette, which isn't a player color, so nothing else in the game is ever red.
@@ -326,7 +326,7 @@ Two-player Arcade (`scenes/duo.js`): `LIVES = 3` per player and the fire keys in
 | What | Where |
 |---|---|
 | Umbrella colors | `UMBRELLA_COLORS` and `PLAYER_COLORS` in `render/palette.js`. `love` is her red and isn't selectable. |
-| Umbrella styles | `STYLES` in `render/umbrella.js` (top-down) and `sideUmbrella()` in `scenes/finale.js` (side view, for the ending). Both read the style you picked (`settings.style`); she always uses `love` with your style. |
+| Umbrella styles | `STYLES` in `render/umbrella.js`. The game, the scenes between chapters and the ending all draw umbrellas with `umbrellaSprite()` from there, using the style you picked (`settings.style`); she always uses `love` with your style. |
 | Places | `LOCATIONS` and `LOCATION_ORDER` in `world/locations.js` (`print` sets the footprint color where the ground takes prints). |
 | Weather and the day's light | `WEATHER` and `DAY` in `world/sky.js`. |
 | Footprints | `PRINT_LIFE = 6` (seconds) in `world/world.js`. |

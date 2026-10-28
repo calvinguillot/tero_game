@@ -1,8 +1,9 @@
 import { Sky } from '../world/sky.js';
 import { lerp, clamp, rand } from '../core/math.js';
 import { saveData } from '../core/storage.js';
-import { PAL, UMBRELLA_COLORS, HANDLE } from '../render/palette.js';
-import { PixBuf, ellipseSprite } from '../render/pixels.js';
+import { PAL } from '../render/palette.js';
+import { ellipseSprite } from '../render/pixels.js';
+import { umbrellaSprite } from '../render/umbrella.js';
 import { drawText } from '../render/font.js';
 import { drawHud } from '../ui/hud.js';
 import { PF_W, PF_H } from '../config.js';
@@ -40,71 +41,6 @@ function mix(a, b, k) {
   const pb = parseInt(b.slice(1), 16);
   const c = [16, 8, 0].map((s) => Math.round(lerp((pa >> s) & 255, (pb >> s) & 255, k)));
   return '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
-}
-
-// An umbrella seen from the side, as a pixel sprite: a scalloped dome, the
-// shaft and the J of the handle, in any of the umbrella styles (see STYLES
-// in render/umbrella.js). `lean` shifts the canopy over the handle; `open`
-// (0..1) folds it down to a closed one. Cached by its parameters.
-const sideCache = new Map();
-function sideUmbrella(color, style, r, lean, open) {
-  lean = Math.round(lean);
-  open = Math.round(open * 4) / 4;
-  const key = [color, style, r, lean, open].join('|');
-  let s = sideCache.get(key);
-  if (s) return s;
-  const pal = UMBRELLA_COLORS[color];
-  const w = r * 2 + 8;
-  const h = Math.round(r * 2.3) + 8;
-  const b = new PixBuf(w, h);
-  const cx = w / 2 + lean;
-  const rw = lerp(r * 0.35, r, open); // canopy half-width
-  const rh = lerp(r * 1.0, r * (style === 'wagasa' ? 0.5 : 0.62), open); // canopy height
-  const top = 3;
-  const body = style === 'bubble' ? 4 : 3;
-  // Dome: an ellipse's upper half, with a scalloped hem.
-  b.fillEllipse(cx, top + rh, rw, rh, body);
-  for (let y = Math.ceil(top + rh); y < h; y++) for (let x = 0; x < w; x++) if (b.get(x, y) === body) b.set(x, y, 0);
-  const hem = Math.round(top + rh);
-  const n = Math.max(2, Math.round(rw / (style === 'wagasa' ? 2 : 3)));
-  for (let i = 0; i < n; i++) b.fillEllipse(cx - rw + ((i + 0.5) * 2 * rw) / n, hem, rw / n, 1.5, body);
-  const inside = (x, y) => b.get(x, y) === body;
-  if (style === 'stripes') {
-    // Every other panel in the light colour.
-    for (let y = 0; y <= hem + 1; y++) for (let x = 0; x < w; x++) if (inside(x, y) && Math.floor(((x - cx + rw) / (2 * rw)) * n) % 2) b.set(x, y, 4);
-  } else if (style !== 'bubble') {
-    b.fillEllipse(cx - rw * 0.25, top + rh * 0.55, rw * 0.5, rh * 0.32, 4);
-  }
-  for (let i = 1; i < n; i++) b.line(cx, top + 1, cx - rw + (i * 2 * rw) / n, hem, 2);
-  if (style === 'polka') {
-    for (const [fx, fy] of [[-0.55, 0.55], [0.1, 0.35], [0.5, 0.7], [-0.15, 0.8]]) {
-      const x = Math.round(cx + fx * rw);
-      const y = Math.round(top + fy * rh);
-      if (b.get(x, y) > 1) b.set(x, y, 7);
-    }
-  } else if (style === 'wagasa') {
-    // The band near the top and the dark rim of a paper umbrella.
-    const band = Math.round(top + rh * 0.3);
-    for (let x = 0; x < w; x++) {
-      if (b.get(x, band)) b.set(x, band, 2);
-      if (b.get(x, hem)) b.set(x, hem, 2);
-    }
-  } else if (style === 'bubble') {
-    b.line(cx - rw * 0.55, top + rh * 0.7, cx - rw * 0.2, top + rh * 0.25, 7);
-  }
-  b.outline(1);
-  if (style === 'frill') for (let x = 0; x < w; x++) if (b.get(x, hem + 1) === 1) b.set(x, hem + 2, x % 2 ? 7 : 1);
-  b.set(cx, top - 1, 1);
-  b.set(cx, top - 2, 1);
-  // Shaft and handle under the middle of the canopy.
-  const sx = Math.round(w / 2);
-  for (let y = hem + 2; y < h - 3; y++) b.set(sx, y, 5);
-  b.set(sx, h - 3, 6);
-  b.set(sx + 1, h - 2, 6);
-  b.set(sx + 2, h - 3, 6);
-  s = { canvas: b.toCanvas([null, pal.outline, pal.dark, pal.base, pal.light, '#c8c8d4', HANDLE.base, pal.accent]), ax: sx, ay: h - 2 };
-  sideCache.set(key, s);
-  return s;
 }
 
 // The end of the story, on the beach at dawn, seen from the side. She stands
@@ -168,10 +104,9 @@ export class FinaleScene {
       this.side = -(this.side || 1);
       for (const u of t > 15 ? [you, her] : [you]) this.prints.push({ x: u.x + this.side * 2, t });
     }
-    if (t > 2 && (input.hit('confirm') || input.hit('action') || input.hit('pause'))) {
-      if (t < ROLL_AT) this.t = ROLL_AT;
-      else if (this.rollDone) this.game.go(new MenuScene(this.game));
-    }
+    // It plays through; once the credits have rolled, a press goes on.
+    const press = input.hit('confirm') || input.hit('action') || input.hit('pause');
+    if (press && this.rollDone) this.game.go(new MenuScene(this.game));
   }
 
   // Rain over the sea and the beach: streaks, rings on the water, and dark
@@ -308,8 +243,12 @@ export class FinaleScene {
       ctx.globalAlpha = 0.3;
       ctx.drawImage(ellipseSprite(R - 4, 2, '#3a2a1a', true), Math.round(u.x) - R + 4, WALK_Y - 1);
       ctx.globalAlpha = 1;
-      const s = sideUmbrella(u.color, u.style, R, u.lean, u.open);
-      ctx.drawImage(s.canvas, Math.round(u.x) - s.ax, WALK_Y + u.bob - s.ay);
+      // The same sprite as in the game: your colour and style; hers red in
+      // your style. The foot of its handle (r × 0.75 + 1 below the rim, see
+      // render/umbrella.js) rests on the sand.
+      const s = umbrellaSprite(u.color, R, u.lean, u.open, false, 'j', u.style, 0);
+      const foot = s.ay + Math.round(R * 0.75) + 1;
+      ctx.drawImage(s.canvas, Math.round(u.x) - s.ax, WALK_Y + u.bob - foot);
     }
     // Rain in front of everything; splashes on the walk.
     ctx.fillStyle = '#9ac4e0';
