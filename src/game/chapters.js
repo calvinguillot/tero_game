@@ -8,7 +8,8 @@ import { lerp } from '../core/math.js';
 // Everything that shapes Story's difficulty lives in STORY. Values given as
 // "first ... last" are spread evenly across the chapters.
 export const STORY = {
-  startTime: 90, // seconds on the clock at the start of every chapter
+  startTime: 60, // seconds on the clock at the start of every chapter
+  walkTime: 60, // seconds the street takes to reach the finish line, every chapter
   baseSpeed: 34, // px/s: the street's pace at 1×
   // Per chapter: the pace it starts at and the pace it builds up to, as
   // multiples of baseSpeed.
@@ -23,20 +24,20 @@ export const STORY = {
     { startSpeed: 1, maxSpeed: 7 },
   ],
   rampPower: 1.6, // how the pace builds within a chapter (1 = evenly, higher = later)
-  // A chapter's length is set so that walking it cleanly takes startTime /
-  // slack seconds: the rest of the clock is room for bumps. Faster chapters
-  // get more room (bumps come quicker at speed), so their streets are a
-  // little shorter.
-  slackFirst: 1.25,
-  slackLast: 1.4,
+  // A chapter's length is set so that the street takes walkTime seconds to
+  // bring the finish line to you. With walkTime equal to startTime there's no
+  // spare time but what her markers give you: every bump has to be won back.
+  hearts: [5, 10, 20], // seconds to spare for 1, 2 and 3 hearts (more than this)
   hitCost: 3, // seconds lost per bump
   keepsakeTime: 2, // seconds gained per marker of hers picked up
   trailEvery: 6, // seconds between markers waiting up the street
   dropEvery: 1.2, // ... and between the ones she drops while in view
   sightEvery: [12, 20], // seconds between glimpses of her
   sightFor: [1.5, 3], // seconds she stays in view
-  spawnFirst: 1.6, // seconds between walkers in the first chapter
-  spawnLast: 0.75, // ... and in the last
+  // px of street between walkers, first and last chapter. Spacing them by
+  // distance keeps the crowd as thick at 7× as at 1×.
+  crowdGapFirst: 66,
+  crowdGapLast: 60,
   npcSpeedFirst: 0.8, // how fast walkers walk (× normal)
   npcSpeedLast: 1.2,
   obstaclesFirst: 0.2, // obstacle density, 0..1
@@ -79,12 +80,12 @@ export const CHAPTERS = PLAN.map((p, i) => {
     ...p,
     ...S.levels[i],
     limit: S.startTime,
-    walk: S.startTime / lerp(S.slackFirst, S.slackLast, k), // a clean run
+    walk: S.walkTime,
+    crowdGap: lerp(S.crowdGapFirst, S.crowdGapLast, k),
     obstacles: lerp(S.obstaclesFirst, S.obstaclesLast, k),
     d: {
       ...DIFFICULTY.normal,
       name: 'STORY',
-      spawnStart: lerp(S.spawnFirst, S.spawnLast, k),
       npcSpeed: lerp(S.npcSpeedFirst, S.npcSpeedLast, k),
       sway: lerp(0.6, 1.3, k),
     },
@@ -94,9 +95,9 @@ export const CHAPTERS = PLAN.map((p, i) => {
   return ch;
 });
 
-// Hearts for the time left at the finish, against the spare time the chapter
-// allows: 3 for keeping most of it, 2 for half-ish, 1 for just making it.
+// Hearts for the seconds left at the finish: more than 20 for 3, more than
+// 10 for 2, more than 5 for 1 (STORY.hearts). Finishing with less still
+// clears the chapter, with no hearts.
 export function starsFor(ch, left) {
-  const spare = ch.limit - ch.walk;
-  return left >= spare * 0.75 ? 3 : left >= spare * 0.35 ? 2 : 1;
+  return STORY.hearts.filter((s) => left > s).length;
 }

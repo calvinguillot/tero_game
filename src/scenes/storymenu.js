@@ -59,12 +59,13 @@ export class StoryMenuScene {
         const y = ROW_Y + i * ROW_H;
         const open = i < story.unlocked;
         const stars = story.stars[i] ?? 0;
+        const cleared = story.records?.[i] != null;
         const on = i === this.sel;
-        const dot = stars ? RED.base : open ? PAL.text : LOCKED;
-        ctx.drawImage(ellipseSprite(3, 3, dot, stars > 0 || on), DOT_X - 3, y - 1);
+        const dot = cleared ? RED.base : open ? PAL.text : LOCKED;
+        ctx.drawImage(ellipseSprite(3, 3, dot, cleared || on), DOT_X - 3, y - 1);
         if (on && Math.floor(this.t * 3) % 2 === 0) drawText(ctx, '>', 16, y, PAL.text, opt);
         drawText(ctx, open ? ch.title : '? ? ?', 36, y, on ? PAL.text : open ? PAL.textDim : LOCKED, opt);
-        if (stars) {
+        if (cleared) {
           for (let h = 0; h < 3; h++) drawText(ctx, '*', 140 + h * 7, y, h < stars ? RED.base : PAL.keySide, opt);
         }
       });

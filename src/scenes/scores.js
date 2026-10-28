@@ -84,7 +84,7 @@ export class ScoresScene {
       const open = i < story.unlocked;
       drawText(ctx, `${i + 1} ${open ? ch.title : '? ? ?'}`, 20, y, r ? PAL.text : PAL.textDim, opt);
       const hearts = story.stars[i] ?? 0;
-      for (let h = 0; h < 3 && hearts; h++) drawText(ctx, '*', 140 + h * 7, y, h < hearts ? UMBRELLA_COLORS.love.base : PAL.keySide, opt);
+      for (let h = 0; h < 3 && r; h++) drawText(ctx, '*', 140 + h * 7, y, h < hearts ? UMBRELLA_COLORS.love.base : PAL.keySide, opt);
       const line = r?.time != null ? `${r.time.toFixed(1)} S   CLOSE! ${r.closes}` : open ? 'NOT FINISHED YET' : '';
       drawText(ctx, line, 28, y + 8, r ? PAL.rippleMid : PAL.textDim, opt);
     });

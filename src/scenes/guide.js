@@ -307,8 +307,8 @@ const PAGES = [
         `- A BUMP COSTS ${STORY.hitCost} SECONDS.`,
         `- WHAT SHE LEAVES GIVES ${STORY.keepsakeTime}.`,
         '- OUT OF TIME: START AGAIN.',
-        '- 1 TO 3 HEARTS, BY THE TIME',
-        '  YOU HAVE TO SPARE.',
+        `- 3/2/1 HEARTS: OVER ${STORY.hearts[2]}/${STORY.hearts[1]}/${STORY.hearts[0]} S`,
+        '  LEFT. LESS STILL PASSES.',
       ], 14, 32, 9);
     },
   },

@@ -139,6 +139,13 @@ export class PlayScene {
     return PAUSE_ITEMS;
   }
 
+  // Seconds until the next walker: busier as the score climbs, and twice as
+  // busy in a SUN RUSH.
+  spawnDelay(I) {
+    const t = lerp(this.d.spawnStart, this.d.spawnMin, I);
+    return this.rushT > 0 ? t * 0.5 : t;
+  }
+
   // Which walker (or pattern) comes next.
   crowdWeights() {
     return spawnWeights(this.score, this.d);
@@ -392,10 +399,7 @@ export class PlayScene {
     if (playing) {
       this.spawnT -= dt;
       if (this.spawnT <= 0) {
-        this.spawnT =
-          lerp(this.d.spawnStart, this.d.spawnMin, I) *
-          rand(0.75, 1.25) *
-          (this.rushT > 0 ? 0.5 : 1);
+        this.spawnT = this.spawnDelay(I) * rand(0.75, 1.25);
         this.spawn();
       }
     }

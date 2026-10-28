@@ -122,6 +122,12 @@ export class StoryScene extends PlayScene {
     return this.ch.crowd;
   }
 
+  // Walkers are spaced by distance, so the street is as busy at top speed
+  // as at the start (by time, a fast street would thin out).
+  spawnDelay() {
+    return this.ch.crowdGap / Math.max(1, this.world.speed);
+  }
+
   // The crowd comes from "GO!" until you cross the line.
   spawn() {
     if (this.started) super.spawn();
