@@ -54,6 +54,20 @@ export class ZenScene extends PlayScene {
     return this.partner ? [this.player, this.partner] : [this.player];
   }
 
+  get players() {
+    return this.walkers;
+  }
+
+  // A few obstacles, always: something to walk around, never a penalty.
+  obstacleDensity() {
+    return 0.3;
+  }
+
+  // In Zen obstacles are just solid: you slide around them.
+  hitObstacle(p, o) {
+    this.world.obstacles.pushOut(p, o);
+  }
+
   controls() {
     return this.partner ? this.wasd : this.game.input;
   }

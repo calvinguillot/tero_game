@@ -26,7 +26,7 @@ import { MenuScene } from "./menu.js";
 import { SplashScene } from "./splash.js";
 
 const START_LIVES = 3;
-const MAX_LIVES = 4; // one spare life at most
+const MAX_LIVES = 3; // a bonus life only refills one you've lost
 const EXTRA_LIFE_EVERY = 100;
 const POINTS_PER_LOCATION = 25;
 const CLOSE_BONUS = 2; // seconds of field recharge for a near miss
@@ -94,7 +94,7 @@ export class PlayScene {
     this.t = 0;
     this.score = 0;
     this.lives = START_LIVES;
-    this.maxLives = START_LIVES; // life slots shown; grows to 4 once the spare is earned
+    this.maxLives = MAX_LIVES; // life slots shown in the HUD
     this.lifeGainT = 0;
     this.streak = 0; // points in a row without getting hit (raises the score blip)
     this.closeCount = 0; // CLOSE! near misses towards the next SUN RUSH
@@ -163,6 +163,16 @@ export class PlayScene {
   // Umbrellas the players walk under (Zen can add a second one).
   get walkers() {
     return [this.player];
+  }
+
+  // The umbrellas someone is steering.
+  get players() {
+    return [this.player];
+  }
+
+  // Each player's force field (two in two-player arcade).
+  get fields() {
+    return [{ field: this.field, owner: this.player }];
   }
 
   // RESTART from the pause menu.
@@ -368,11 +378,14 @@ export class PlayScene {
     if (playing) this.world.speed = this.streetSpeed(I);
     else this.world.speed = lerp(this.world.speed, 12, dt * 2);
     this.world.umbrellas = this.npcs.concat(this.walkers);
+    this.world.obstacles.density = playing ? this.obstacleDensity(I) : 0;
     this.world.update(dt);
     this.handleSky();
-    this.field.update(dt, this.world.speed * dt);
-    for (const e of this.field.takeEvents())
-      this.sound(e === "ready" ? "fieldReady" : "fieldFade");
+    for (const { field } of this.fields) {
+      field.update(dt, this.world.speed * dt);
+      for (const e of field.takeEvents())
+        this.sound(e === "ready" ? "fieldReady" : "fieldFade");
+    }
     this.player.update(dt, playing ? this.controls() : null, this.world);
     if (this.player.splashed) this.sound("puddle");
 
@@ -388,11 +401,13 @@ export class PlayScene {
     }
 
     for (const n of this.npcs) n.update(dt, this.world, this.player);
+    this.world.obstacles.steer(this.npcs, dt);
     separate(this.npcs, dt);
     this.applyField();
     this.npcs = this.npcs.filter((n) => n.y < PF_H + 30 && n.y > -80);
 
     if (playing) this.checkNpcs();
+    if (playing) this.checkObstacles();
 
     for (const p of this.popups) p.t += dt;
     this.popups = this.popups.filter((p) => p.t < p.life);
@@ -473,7 +488,6 @@ export class PlayScene {
     }
     if (this.score % EXTRA_LIFE_EVERY === 0 && this.lives < MAX_LIVES) {
       this.lives++;
-      this.maxLives = Math.max(this.maxLives, this.lives);
       this.lifeGainT = 0.8;
       this.popup("+1 LIFE", p.x, p.y - 44, {
         scale: 2,
@@ -578,6 +592,27 @@ export class PlayScene {
     }
   }
 
+  // How busy the street is with obstacles (0..1): more as the crowd picks up.
+  obstacleDensity(I) {
+    return 0.25 + 0.75 * I;
+  }
+
+  // Obstacles follow the same rule as walkers: in arcade, a life. While you
+  // can't be hurt (after a hit, behind the force field, in a SUN RUSH) you
+  // pass through.
+  checkObstacles() {
+    for (const p of this.players) {
+      if (p.dead) continue;
+      const o = this.world.obstacles.touching(p);
+      if (o) this.hitObstacle(p, o);
+    }
+  }
+
+  hitObstacle(p, o) {
+    if (p.invT > 0 || p.shieldT > 0 || this.rushT > 0) return;
+    this.hit(null, o);
+  }
+
   // The lane (x) farthest from walkers near the top, for a walker of half-width `half`.
   freeLane(half) {
     let bestX = GROUND_L + half;
@@ -587,6 +622,7 @@ export class PlayScene {
       let gap = Infinity;
       for (const n of this.npcs)
         if (n.y < 40) gap = Math.min(gap, Math.abs(n.x - x));
+      gap = Math.min(gap, this.world.obstacles.roomAt(x));
       if (gap > bestGap) [bestGap, bestX] = [gap, x];
     }
     return bestX;
@@ -610,9 +646,8 @@ export class PlayScene {
   }
 
   // Burst: the field's front sweeps outward over the next few frames (applyField).
-  fireField() {
-    const p = this.player;
-    if (!this.field.fire(p.x, p.y)) return;
+  fireField(p = this.player, field = this.field) {
+    if (!field.fire(p.x, p.y)) return;
     p.shieldT = 0.5;
     this.world.displace(p.x, p.y, 20);
     this.world.addRipple(p.x, p.y + 10, 26, 3, 1.2);
@@ -627,10 +662,13 @@ export class PlayScene {
   // bounces off the dome until it fades.
   applyField() {
     const domes = [];
-    for (const w of this.field.waves) {
-      const rf = this.field.front(w);
+    const waves = this.fields.flatMap(({ field }) =>
+      field.waves.map((w) => [field, w]),
+    );
+    for (const [field, w] of waves) {
+      const rf = field.front(w);
       domes.push({ x: w.x, y: w.y, r: rf });
-      if (!this.field.expanding(w)) continue;
+      if (!field.expanding(w)) continue;
       for (const n of this.npcs) {
         if (n.shooed) continue;
         const dx = n.x - w.x;
@@ -646,13 +684,16 @@ export class PlayScene {
     this.world.domes = domes;
   }
 
-  hit(npc) {
+  // Bumping into a walker (or an obstacle: `npc` is then null) costs a life.
+  hit(npc, from = npc) {
     const p = this.player;
-    const dir = Math.sign(npc.x - p.x) || 1;
-    npc.touched = true;
-    npc.knockV = dir * 70;
-    npc.wob = 1;
-    npc.flashT = 0.12;
+    const dir = Math.sign(from.x - p.x) || 1;
+    if (npc) {
+      npc.touched = true;
+      npc.knockV = dir * 70;
+      npc.wob = 1;
+      npc.flashT = 0.12;
+    }
     p.vx -= dir * 80;
     p.hitT = 0.55;
     p.invT = this.d.invuln;
@@ -690,7 +731,8 @@ export class PlayScene {
           ground: () => this.drawGround(ctx),
           overlay: () => {
             if (this.rushT > 0) this.drawRushGlow(ctx);
-            this.field.draw(ctx, p);
+            for (const { field, owner } of this.fields)
+              field.draw(ctx, owner);
             // "!" over walkers about to make a move.
             for (const n of this.npcs) {
               if (n.alert && Math.floor(this.t * 10) % 2 === 0) {

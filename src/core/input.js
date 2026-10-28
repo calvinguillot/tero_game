@@ -31,6 +31,7 @@ export class Input {
     this.down = new Set();
     this.hits = new Set();
     this.keys = new Set(); // raw key codes held, to tell WASD from the arrows
+    this.codeHits = new Set(); // raw key codes pressed this frame (two players' fire keys)
     this.stick = null; // { id, ox, oy, vx, vy, dir }
     this.buttonId = null;
     this.tap = null;
@@ -42,6 +43,7 @@ export class Input {
       e.preventDefault();
       if (!e.repeat) {
         this.hits.add(a);
+        this.codeHits.add(e.code);
         if (a === 'action') this.hits.add('confirm');
       }
       this.down.add(a);
@@ -160,8 +162,16 @@ export class Input {
     return this.hits.delete(action);
   }
 
+  // Whether any of these exact keys was just pressed (and takes the press).
+  hitKey(...codes) {
+    let hit = false;
+    for (const c of codes) if (this.codeHits.delete(c)) hit = true;
+    return hit;
+  }
+
   endFrame() {
     this.hits.clear();
+    this.codeHits.clear();
     this.tap = null;
   }
 }

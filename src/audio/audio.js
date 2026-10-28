@@ -14,6 +14,18 @@ const SCALES = {
   night: { root: 220.0, steps: [0, 3, 5, 7, 10] }, // A minor pentatonic
 };
 const BEAT = 0.34; // seconds per music step
+
+// The ending's own tune, in C major: [semitones above middle C, beats], four
+// beats to a bar, and the bass note under each bar.
+const ENDING = {
+  beat: 0.56,
+  melody: [
+    [4, 2], [2, 1], [0, 1], [2, 2], [7, 2], [4, 2], [2, 1], [4, 1], [0, 4],
+    [9, 2], [7, 1], [4, 1], [7, 2], [12, 2], [11, 2], [9, 1], [7, 1], [7, 4],
+    [4, 2], [5, 1], [7, 1], [9, 2], [7, 2], [5, 2], [4, 1], [2, 1], [0, 4],
+  ],
+  bass: [0, 7, 0, 0, 5, 0, 7, 7, 0, 5, 7, 0],
+};
 const SFX_VOL = 0.55;
 const AMB_VOL = 0.7;
 const MUSIC_VOL = 0.22;
@@ -252,11 +264,6 @@ export class AudioEngine {
     this.tone({ type: 'square', f0: 1400, dur: 0.025, vol: 0.04 });
   }
 
-  // Story: a chapter's halfway ribbon.
-  checkpoint() {
-    [0, 4, 7].forEach((n, i) => this.tone({ type: 'triangle', f0: semis(659, n), dur: 0.14, vol: 0.08, at: i * 0.07 }));
-  }
-
   // Photo mode: a camera click.
   shutter() {
     this.noise({ type: 'highpass', f0: 3000, dur: 0.03, vol: 0.15 });
@@ -364,6 +371,14 @@ export class AudioEngine {
   // a minor one by night; sparser in storms, bright and double-time in a rush.
   playMusic(sky) {
     const c = this.ctx;
+    // A scene can ask for its own tune (the ending); switching starts it clean.
+    if (this.theme !== this.playing) {
+      this.playing = this.theme;
+      this.nextNote = c.currentTime + 0.3;
+      this.endStep = 0;
+      this.endBeat = 0;
+    }
+    if (this.theme === 'ending') return this.playEnding();
     const scale = sky.night > 0.5 && !this.rush ? SCALES.night : SCALES.day;
     const beat = this.rush ? BEAT / 2 : BEAT;
     while (this.nextNote < c.currentTime + 0.2) {
@@ -380,6 +395,27 @@ export class AudioEngine {
       }
       this.step++;
       this.nextNote += beat;
+    }
+  }
+
+  // The ending: a slow, simple melody with a soft octave above it, over long
+  // bass notes, round and round.
+  playEnding() {
+    const c = this.ctx;
+    const E = ENDING;
+    const root = SCALES.day.root;
+    while (this.nextNote < c.currentTime + 0.2) {
+      const at = this.nextNote - c.currentTime;
+      if (this.endBeat % 4 === 0) {
+        const bar = Math.floor(this.endBeat / 4) % E.bass.length;
+        this.tone({ type: 'triangle', f0: semis(root / 2, E.bass[bar]), dur: E.beat * 4.4, vol: 0.11, attack: 0.15, at, dest: this.music });
+      }
+      const [n, beats] = E.melody[this.endStep % E.melody.length];
+      this.tone({ type: 'sine', f0: semis(root, n), dur: E.beat * beats * 1.15, vol: 0.12, attack: 0.03, at, dest: this.music });
+      this.tone({ type: 'triangle', f0: semis(root, n + 12), dur: E.beat * beats, vol: 0.025, attack: 0.05, at, dest: this.music });
+      this.nextNote += E.beat * beats;
+      this.endBeat += beats;
+      this.endStep++;
     }
   }
 }

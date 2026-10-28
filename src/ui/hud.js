@@ -78,7 +78,41 @@ function controls(input) {
   return { v: input.axis(), pressed: input.down.has('action') };
 }
 
+// Two-player arcade: a side panel each, with that player's CLOSE! count,
+// lives and force field; the place, weather and the shared SUN RUSH between.
+function duoSide(ctx, p, cx, y0, keys, t) {
+  const pal = UMBRELLA_COLORS[p.color];
+  drawText(ctx, p.tag, cx, y0, pal.light, { scale: 2, shadow: PAL.textShadow, align: 'center' });
+  label(ctx, 'CLOSE!', cx, y0 + 16);
+  drawText(ctx, p.closes, cx, y0 + 25, PAL.text, { scale: 3, shadow: PAL.textShadow, align: 'center' });
+  lives(ctx, p, cx, y0 + 66, 18);
+  label(ctx, 'FIELD', cx, y0 + 80);
+  drawChargeBar(ctx, cx, y0 + 90, 44, p.charge, p.ready, p.color, t);
+  label(ctx, keys, cx, y0 + 98);
+}
+
+function duoLandscape(ctx, s, input) {
+  const { p1, p2 } = s.duoInfo;
+  duoSide(ctx, p1, 35, 9, 'WASD+SPACE', s.t);
+  rushMeter(ctx, s, 35, 124, 48);
+  label(ctx, 'MOVE', 35, 150);
+  drawJoystick(ctx, 35, 198, controls(input).v, p1.color);
+  label(ctx, s.location, 285, 9, PAL.text);
+  label(ctx, s.weatherName, 285, 19, ['STORMY', 'BLIZZARD', 'SUN RUSH'].includes(s.weatherName) ? RUSH_GOLD : PAL.textDim);
+  duoSide(ctx, p2, 285, 40, 'ARROWS+ENTER', s.t);
+  label(ctx, 'PAUSE', 285, 204);
+  drawKey(ctx, 277, 213, 'ESC', input.down.has('pause'), UMBRELLA_COLORS[p2.color].base, 17);
+}
+
 function landscape(ctx, s, input) {
+  if (s.duoInfo) {
+    panel(ctx, 0, 0, 70, 240);
+    panel(ctx, 250, 0, 70, 240);
+    ctx.fillStyle = PAL.panelEdge;
+    ctx.fillRect(69, 0, 1, 240);
+    ctx.fillRect(250, 0, 1, 240);
+    return duoLandscape(ctx, s, input);
+  }
   panel(ctx, 0, 0, 70, 240);
   panel(ctx, 250, 0, 70, 240);
   ctx.fillStyle = PAL.panelEdge;
@@ -97,7 +131,7 @@ function landscape(ctx, s, input) {
     const { left, progress } = s.chapterInfo;
     label(ctx, 'TIME', 35, 9);
     clock(ctx, s, left, 35, 18, 3, 'center');
-    label(ctx, 'TO HER', 35, 46);
+    label(ctx, 'FINISH', 35, 46);
     toHer(ctx, 11, 56, 40, progress, s.t);
   } else {
     if (!s.title) {
@@ -141,7 +175,11 @@ function portrait(ctx, s, input) {
   const { v, pressed } = controls(input);
   const accent = UMBRELLA_COLORS[s.color].base;
 
-  if (s.zen) {
+  if (s.duoInfo) {
+    const { p1, p2 } = s.duoInfo;
+    drawText(ctx, `${p1.tag} ${p1.closes}`, 8, 8, UMBRELLA_COLORS[p1.color].light, { scale: 2, shadow: PAL.textShadow });
+    drawText(ctx, `${p2.closes} ${p2.tag}`, 150, 8, UMBRELLA_COLORS[p2.color].light, { scale: 2, shadow: PAL.textShadow, align: 'right' });
+  } else if (s.zen) {
     drawText(ctx, 'ZEN', 8, 8, PAL.text, { scale: 2, shadow: PAL.textShadow });
     if (s.timeName) drawText(ctx, s.timeName, 40, 10, PAL.textDim);
   } else if (s.chapterInfo) {

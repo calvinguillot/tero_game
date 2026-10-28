@@ -11,6 +11,7 @@ import { MenuScene } from './menu.js';
 import { PlayScene } from './play.js';
 import { ZenScene } from './zen.js';
 import { StoryMenuScene } from './storymenu.js';
+import { DuoScene } from './duo.js';
 
 const LEVEL_HELP = {
   easy: ['SLOWER CROWD, SOFTER HITBOX.', 'FIELD RECHARGES IN 8 S.'],
@@ -24,18 +25,24 @@ const MODE_HELP = {
   story: ['FOLLOW THE RED UMBRELLA', 'THROUGH ONE DAY AND NIGHT.'],
 };
 
+const TOGETHER_HELP = {
+  zen: ['WALK WITH HER. YOU TAKE', 'WASD, SHE TAKES THE ARROWS.'],
+  arcade: ['TWO PLAYERS: MOST CLOSE!', 'WINS. WASD VS ARROWS.'],
+};
+
 const ROWS = [
   { key: 'mode', label: 'MODE', list: ['arcade', 'zen', 'story'], show: (v) => v.toUpperCase(), help: (v) => MODE_HELP[v] },
-  // Zen only, once the story has been finished.
-  { key: 'together', label: 'TOGETHER', list: [true, false], show: (v) => (v ? 'ON' : 'OFF'), help: () => ['WALK WITH HER. YOU TAKE', 'WASD, SHE TAKES THE ARROWS.'] },
+  // Zen and arcade, once the story has been finished.
+  { key: 'together', label: 'TOGETHER', list: [true, false], show: (v) => (v ? 'ON' : 'OFF'), help: (v, mode) => TOGETHER_HELP[mode] },
   { key: 'color', label: 'COLOR', list: PLAYER_COLORS, show: (v) => v.toUpperCase(), help: () => ['YOUR UMBRELLA COLOR.', 'THE STICK AND BUTTON MATCH.'] },
   { key: 'style', label: 'STYLE', list: STYLE_KEYS, show: (v) => STYLES[v].name, help: () => ['SHAPE AND PATTERN OF', 'YOUR UMBRELLA.'] },
   { key: 'difficulty', label: 'LEVEL', list: DIFFICULTY_KEYS, show: (v) => DIFFICULTY[v].name, help: (v) => LEVEL_HELP[v] },
   { key: null, label: 'START', help: () => ['CHOICES ARE KEPT FOR', 'THE NEXT RUN.'] },
 ];
-const ROW_Y = 118;
-const ROW_H = 12;
-const START_Y = 170;
+const ROW_Y = 112;
+const ROW_H = 11;
+// START sits under the rows, lower when there are more of them.
+const startY = (rows) => Math.max(170, ROW_Y + (rows - 1) * ROW_H + 14);
 
 // Between PLAY and the run: pick the mode, your umbrella and the level, with a
 // live preview. Zen has no levels, so LEVEL is hidden there. Choices are
@@ -48,7 +55,7 @@ export class SetupScene {
     this.sel = this.rows.length - 1;
     this.t = 0;
     this.changeT = 0;
-    this.hero = heroUmbrella(game, 90, 80, 18);
+    this.hero = heroUmbrella(game, 90, 74, 18);
   }
 
   // The rows on show (the last one is START).
@@ -57,7 +64,7 @@ export class SetupScene {
     const unlocked = this.game.data.story.done;
     return ROWS.filter((r) => {
       if (r.key === 'difficulty') return mode === 'arcade';
-      if (r.key === 'together') return mode === 'zen' && unlocked;
+      if (r.key === 'together') return mode !== 'story' && unlocked;
       return true;
     });
   }
@@ -80,7 +87,7 @@ export class SetupScene {
     this.bd.update(dt, [this.hero]);
 
     const start = this.rows.length - 1;
-    const rects = this.rows.map((_, i) => (i === start ? { x: 40, y: START_Y - 4, w: 100, h: 18 } : { x: 14, y: ROW_Y + i * ROW_H - 4, w: 152, h: ROW_H }));
+    const rects = this.rows.map((_, i) => (i === start ? { x: 40, y: startY(this.rows.length) - 4, w: 100, h: 18 } : { x: 14, y: ROW_Y + i * ROW_H - 4, w: 152, h: ROW_H }));
     const prev = this.sel;
     const { sel, act } = navigate(this.game, this.sel, rects);
     this.sel = sel;
@@ -89,7 +96,8 @@ export class SetupScene {
     if (act) {
       if (sel === start) {
         const { mode } = this.game.data.settings;
-        const next = mode === 'zen' ? new ZenScene(this.game) : mode === 'story' ? new StoryMenuScene(this.game) : new PlayScene(this.game);
+        const duo = this.game.data.settings.together && this.game.data.story.done;
+        const next = mode === 'zen' ? new ZenScene(this.game) : mode === 'story' ? new StoryMenuScene(this.game) : duo ? new DuoScene(this.game) : new PlayScene(this.game);
         return this.game.go(next);
       }
       // Tapping the row you're on steps its value; Space/Enter does too.
@@ -126,8 +134,8 @@ export class SetupScene {
         const v = row.show(s[row.key]);
         drawText(ctx, on ? `< ${v} >` : v, 118, y, color, { ...opt, align: 'center' });
       });
-      menuItem(ctx, 'START', 90, START_Y, this.sel === start, this.t);
-      const help = rows[this.sel].help(s[rows[this.sel].key]);
+      menuItem(ctx, 'START', 90, startY(rows.length), this.sel === start, this.t);
+      const help = rows[this.sel].help(s[rows[this.sel].key], s.mode);
       plate(ctx, 14, 192, 152, 22);
       help.forEach((line, i) => hint(ctx, line, 196 + i * 9));
       hint(ctx, '< >: CHANGE   ESC: BACK', 222);

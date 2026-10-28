@@ -33,7 +33,16 @@ export function drawStreet(ctx, world, umbrellas, { hidden = null, overlay = nul
   const sorted = [...umbrellas].sort((a, b) => a.y - b.y);
   const row = (u) => (u.rides ? world.sy : Math.round);
   for (const u of sorted) drawShadow(ctx, u, world.locAt(u.y).shadow, row(u));
-  for (const u of sorted) if (u !== hidden) drawUmbrella(ctx, u, row(u));
+  world.obstacles.drawShadows(ctx);
+  // Umbrellas and obstacles together, by where they stand on the street, so
+  // nearer things overlap farther ones.
+  const things = sorted.filter((u) => u !== hidden).map((u) => ({ y: u.y + u.r * 0.95, u }));
+  for (const o of world.obstacles.list) things.push({ y: o.y, o });
+  things.sort((a, b) => a.y - b.y);
+  for (const t of things) {
+    if (t.u) drawUmbrella(ctx, t.u, row(t.u));
+    else world.obstacles.drawOne(ctx, t.o);
+  }
   world.decor.drawSide(ctx, true);
   world.decor.drawOverhead(ctx);
   world.animals.drawAir(ctx);
@@ -41,6 +50,7 @@ export function drawStreet(ctx, world, umbrellas, { hidden = null, overlay = nul
   world.drawRain(ctx);
   const sky = world.sky;
   sky.drawFog(ctx);
+  world.obstacles.drawOutlines(ctx, sky.p.fog);
   sky.drawTint(ctx);
   world.drawLights(ctx, glow && glow !== hidden ? glow : null);
   sky.drawFlash(ctx, world.softFlash);

@@ -7,6 +7,7 @@ import { drawWalls } from './walls.js';
 import { LOCATIONS } from './locations.js';
 import { Decor } from './decor.js';
 import { Animals } from './animals.js';
+import { Obstacles } from './obstacles.js';
 import { Sky } from './sky.js';
 
 const MAX_DROPS = 500;
@@ -53,6 +54,7 @@ export class World {
     for (let i = 0; i < 5; i++) this.puddles.push(this.newPuddle(rand(-20, PF_H)));
     this.decor = new Decor(this);
     this.animals = new Animals(this);
+    this.obstacles = new Obstacles(this); // none until a scene sets a density
     // Pre-simulate so the first frame is already raining.
     for (let i = 0; i < 180; i++) this.update(1 / 60);
   }
@@ -207,6 +209,7 @@ export class World {
 
     this.decor?.update(dt, sc);
     this.animals?.update(dt, sc);
+    this.obstacles?.update(sc);
   }
 
   takePlayerDrops() {
@@ -436,6 +439,14 @@ export class World {
       ctx.drawImage(ellipseSprite(5, 3, '#6a5220', true), Math.round(l.x) - 5, this.sy(l.y) - 3);
       ctx.fillStyle = '#ffe9a0';
       ctx.fillRect(Math.round(l.x) - 1, this.sy(l.y), 3, 1);
+    }
+    // Reflectors on obstacles, and the roadworks lamps.
+    for (const o of this.obstacles.lights()) {
+      const y = this.sy(o.y);
+      ctx.globalAlpha = night * (o.lamp ? 0.9 : 0.6);
+      if (o.lamp) ctx.drawImage(ellipseSprite(6, 3, '#6a3010', true), Math.round(o.x) - 6, y - 3);
+      ctx.fillStyle = o.lamp ? '#ffb070' : '#ffe9a0';
+      ctx.fillRect(Math.round(o.x), y, 1, 1);
     }
     // Bunting bulbs.
     for (const b of this.decor.bulbs()) {

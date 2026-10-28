@@ -1,4 +1,6 @@
 import { PAL } from '../render/palette.js';
+import { DIFFICULTY } from '../game/difficulty.js';
+import { STORY } from '../game/chapters.js';
 import { drawText } from '../render/font.js';
 import { umbrellaSprite } from '../render/umbrella.js';
 import { ellipseSprite } from '../render/pixels.js';
@@ -124,7 +126,7 @@ const PAGES = [
   {
     title: 'THE STREET',
     draw(ctx) {
-      lines(ctx, ['WALK UP THE RAINY STREET.', '', '!EVERY UMBRELLA THAT GETS', '!PAST YOU SCORES +1.', '', 'BUMP INTO ONE AND YOU LOSE', 'A LIFE. YOU HAVE THREE, AND', 'EVERY 100 POINTS GIVES ONE', 'BACK (UP TO FOUR).', '', 'THE CROWD GETS FASTER AND', 'BUSIER AS YOU SCORE.'], 14, 34);
+      lines(ctx, ['WALK UP THE RAINY STREET.', '', '!EVERY UMBRELLA THAT GETS', '!PAST YOU SCORES +1.', '', 'BUMP INTO ONE AND YOU LOSE', 'A LIFE. YOU HAVE THREE, AND', 'EVERY 100 POINTS GIVES A', 'LOST ONE BACK.', '', 'THE CROWD GETS FASTER AND', 'BUSIER AS YOU SCORE.'], 14, 34);
       umbrella(ctx, 'npc', 13, 44, 178);
       umbrella(ctx, 'npcSand', 13, 136, 172);
       caption(ctx, '+1', 44, 152);
@@ -194,8 +196,8 @@ const PAGES = [
         'EVERY CLOSE! NEAR MISS IS',
         'COUNTED UNDER YOUR SCORE.',
         '',
-        '!AT 20 CLOSE! (15 ON EASY,',
-        '!25 ON HARD) THE SUN BREAKS',
+        `!AT ${DIFFICULTY.normal.rushEvery} CLOSE! (${DIFFICULTY.easy.rushEvery} ON EASY,`,
+        `!${DIFFICULTY.hard.rushEvery} ON HARD) THE SUN BREAKS`,
         '!THROUGH FOR FIVE SECONDS:',
         '',
         '- EVERYONE SHUTS THEIR',
@@ -243,6 +245,45 @@ const PAGES = [
     },
   },
   {
+    title: 'IN THE WAY',
+    draw(ctx) {
+      lines(ctx, [
+        'PLANTERS, BENCHES, LOGS,',
+        'SNOWBANKS, CRATES... AND',
+        'WALLS THAT JUT OUT.',
+        '',
+        '!THERE IS ALWAYS A WAY',
+        '!THROUGH.',
+        '',
+        'ARCADE: A BUMP COSTS A LIFE.',
+        'STORY: IT COSTS TIME.',
+        'ZEN: YOU JUST SLIDE AROUND.',
+        '',
+        'AT NIGHT THEY SHOW A SMALL',
+        'LIGHT; IN FOG, AN OUTLINE.',
+      ], 14, 34);
+    },
+  },
+  {
+    title: 'TWO PLAYERS',
+    draw(ctx) {
+      lines(ctx, [
+        'FINISH THE STORY, THEN TURN',
+        'TOGETHER ON IN ARCADE.',
+        '',
+        '!MOST CLOSE! WINS.',
+        '',
+        'P1: WASD + SPACE',
+        'P2: ARROWS + ENTER',
+        '',
+        'THREE LIVES EACH. BOTH',
+        "PLAYERS' CLOSE! FILL ONE",
+        'SUN RUSH. SCORES ARE NOT',
+        'SAVED: JUST PLAY AGAIN.',
+      ], 14, 34);
+    },
+  },
+  {
     title: 'STORY',
     draw(ctx) {
       lines(ctx, [
@@ -250,18 +291,18 @@ const PAGES = [
         'THROUGH ONE DAY AND NIGHT,',
         'EIGHT CHAPTERS IN ALL.',
         '',
-        '!REACH HER BEFORE THE CLOCK',
-        '!RUNS OUT.',
+        '!REACH THE LANTERNS AT THE',
+        '!END OF THE STREET BEFORE',
+        '!THE CLOCK RUNS OUT.',
         '',
-        'WALK UP THE STREET TO GO',
-        'FASTER - BUT THEN YOU SEE',
-        'THE CROWD LATER.',
+        'THE STREET SPEEDS UP AS YOU',
+        'GO, MORE IN EACH CHAPTER.',
+        'NOW AND THEN YOU GLIMPSE',
+        'HER, FAR AHEAD.',
         '',
-        '- A BUMP COSTS 3 SECONDS.',
-        '- WHAT SHE LEAVES BEHIND',
-        '  GIVES 2 BACK.',
-        '- THE RED RIBBON HALFWAY IS',
-        '  A CHECKPOINT.',
+        `- A BUMP COSTS ${STORY.hitCost} SECONDS.`,
+        `- WHAT SHE LEAVES GIVES ${STORY.keepsakeTime}.`,
+        '- OUT OF TIME: START AGAIN.',
         '- 1 TO 3 HEARTS, BY THE TIME',
         '  YOU HAVE TO SPARE.',
       ], 14, 32, 9);

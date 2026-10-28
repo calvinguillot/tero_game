@@ -5,9 +5,9 @@
 // CLOSE! near misses start a SUN RUSH; wetSlow is how much puddles and mud
 // slow you (1 = not at all; a little everywhere, more on Hard).
 export const DIFFICULTY = {
-  easy: { name: 'EASY', stormAfter: 90, speedStart: 30, speedMax: 70, spawnStart: 1.6, spawnMin: 0.7, sway: 0.6, npcSpeed: 0.8, unlock: 1.5, hitScale: 0.6, invuln: 2.0, recharge: 8, rushEvery: 15, wetSlow: 0.9 },
-  normal: { name: 'NORMAL', stormAfter: 60, speedStart: 40, speedMax: 95, spawnStart: 1.3, spawnMin: 0.5, sway: 1, npcSpeed: 1, unlock: 1, hitScale: 0.7, invuln: 1.5, recharge: 12, rushEvery: 20, wetSlow: 0.88 },
-  hard: { name: 'HARD', stormAfter: 30, speedStart: 50, speedMax: 120, spawnStart: 1.0, spawnMin: 0.38, sway: 1.4, npcSpeed: 1.25, unlock: 0.6, hitScale: 0.75, invuln: 1.2, recharge: 16, rushEvery: 25, wetSlow: 0.8 },
+  easy: { name: 'EASY', stormAfter: 90, speedStart: 30, speedMax: 70, spawnStart: 1.6, spawnMin: 0.7, sway: 0.6, npcSpeed: 0.8, unlock: 1.5, hitScale: 0.6, invuln: 2.0, recharge: 8, rushEvery: 10, wetSlow: 0.9 },
+  normal: { name: 'NORMAL', stormAfter: 60, speedStart: 40, speedMax: 95, spawnStart: 1.3, spawnMin: 0.5, sway: 1, npcSpeed: 1, unlock: 1, hitScale: 0.7, invuln: 1.5, recharge: 12, rushEvery: 15, wetSlow: 0.88 },
+  hard: { name: 'HARD', stormAfter: 30, speedStart: 50, speedMax: 120, spawnStart: 1.0, spawnMin: 0.38, sway: 1.4, npcSpeed: 1.25, unlock: 0.6, hitScale: 0.75, invuln: 1.2, recharge: 16, rushEvery: 20, wetSlow: 0.8 },
 };
 export const DIFFICULTY_KEYS = Object.keys(DIFFICULTY);
 

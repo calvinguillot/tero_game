@@ -6,16 +6,20 @@ It runs in the browser using plain JavaScript and the Canvas 2D API. All of the 
 
 ## Features
 
-- **Arcade mode**: three lives, a crowd that speeds up as you score, an extra life every 100 points (four at most), and an arcade-style high-score table for each difficulty where you sign your three initials (it also records each run's CLOSE! count). Puddles, mud and drifts slow you down a little, and a bit more on Hard.
+- **Arcade mode**: three lives, a crowd that speeds up as you score, a lost life back every 100 points (never more than three), and an arcade-style high-score table for each difficulty where you sign your three initials (it also records each run's CLOSE! count). Puddles, mud and drifts slow you down a little, and a bit more on Hard.
 - **Force field**: a shockwave that pushes nearby umbrellas away and snaps them shut, and sweeps the water aside. It recharges over time, and near misses (**CLOSE!**) give it a boost.
-- **SUN RUSH**: every 20 CLOSE! near misses (15 on Easy, 25 on Hard), the sun breaks through for five seconds, even at night. Everyone shuts their umbrella, you run with your own umbrella closed and glowing, nothing can hurt you, and every umbrella you pass or bump scores.
+- **SUN RUSH**: every 15 CLOSE! near misses (10 on Easy, 20 on Hard), the sun breaks through for five seconds, even at night. Everyone shuts their umbrella, you run with your own umbrella closed and glowing, nothing can hurt you, and every umbrella you pass or bump scores.
 - **Story mode, "Finding Love"**: eight chapters across one day and night, following a red umbrella through every place in town.
-  - **The chase:** each chapter has a fixed hour and weather, and a distance to walk before time runs out. Walking up the street pushes it along faster, but leaves you less time to see who's coming.
+  - **A race to the finish:** each chapter has a fixed hour and weather and a finish line at the end of the street (red paper lanterns over a band of pale paving), to be reached before time runs out.
+  - **Speed:** every chapter starts at the same pace and builds up to its top speed, from 1× in the first chapter to 5× in the last. Chapters also get longer and busier.
+  - **Her:** she's the reason you run, not someone to catch. She runs off before each chapter starts, and after that you only glimpse her far up the street now and then, as clearly as the weather allows (fog and dark blur her; in storms only lightning shows her).
   - **Time instead of lives:** a bump costs 3 seconds. The ripples, petals and footprints she leaves behind add 2 seconds each.
-  - **Halfway:** a red ribbon marks the checkpoint; run out of time after it and you start again from there.
+  - **No checkpoints:** run out of time and the chapter starts over. Cleared chapters stay unlocked.
   - **Hearts:** 1–3 per chapter, by the time you have to spare.
-  - **No words:** short scenes between chapters show where she went, and the dawn finale brings you together.
+  - **No words:** short scenes before each chapter show where she went. The ending is a side-on scene by the coast at dawn, with its own music.
+- **Obstacles**: planters, benches, logs, snowbanks, crates, cacti and the like, plus stretches where the wall juts out, in every mode. Each place has its own. They come in patterns that always leave a way through, show a small light at night and an outline in fog. In Arcade a bump costs a life, in Story it costs time, and in Zen they're just solid and you slide around them.
 - **Walk Together** (unlocked by finishing the story): in Zen, she walks with you. You use WASD or the stick and she uses the arrow keys, so two people can play on one keyboard. Left alone, she walks beside you at your pace.
+- **Two-player Arcade** (also unlocked by the story): turn TOGETHER on in Arcade. P1 plays with WASD and Space, P2 with the arrows and Enter. Each has three lives and a force field, and the one with more CLOSE! when you're both out wins. Both players' CLOSE! fill one shared SUN RUSH meter. Results aren't saved; solo Arcade keeps the high scores.
 - **Zen mode**: nothing to win and nothing to lose. There's no score, lives, force field or game over, and bumping someone is just a wobble. The crowd keeps Easy's gentle pace with no hurriers, the day is twice as long, and the weather (storms included) changes half as often. Drops on your umbrella play soft notes in the music's key. When you leave, the game tells you how far you walked and through how many places; it isn't saved anywhere.
 - **Photo mode**: in any mode, pause and pick PHOTO (or press C). The street holds still while the rain keeps falling, and Space or a tap saves a PNG of the playfield at 4× size.
 - **Attract mode**: leave the title screen alone and the game plays a demo of itself.
@@ -110,16 +114,22 @@ Places change by distance walked rather than by score. The world counts drops th
 **Story** (`scenes/story.js`, chapters in `game/chapters.js`) is another subclass of the arcade scene.
 - **What it overrides:**
   - `tuning()`: the chapter's crowd and weather.
-  - `streetSpeed()`: a base pace, plus a push the higher up the screen you walk.
+  - `streetSpeed()`: the chapter's pace at how far you've got (`speedAt` in `game/chapters.js`).
+  - `obstacleDensity()`: the chapter's density, rising from the first chapter to the last.
   - `checkNpcs()`: a bump costs time.
   - `walkers`: she's drawn and lit with you, and in the storm only while lightning flashes.
-- **What it adds:** the clock, the halfway checkpoint, her movement, the keepsakes she drops (they ride the street and are drawn through a `ground` hook under the umbrellas), and the end cards.
+- **What it adds:** her opening run and the glimpses of her, the clock, the keepsakes she drops (they ride the street and are drawn through a `ground` hook under the umbrellas), the finish line and its lanterns, and the end cards.
+- **Tuning in one place:** the `STORY` block in `game/chapters.js` holds the base speed, the final speed multiplier (5), how the pace builds within a chapter, the first and last chapter's length, crowd and obstacle density, and the time slack. Each chapter's values are spread evenly between the first and last, and its time limit is worked out from its own speed curve, so changing one number reshapes every chapter consistently.
 - **Around it:**
   - `scenes/vignette.js` scripts the wordless scene before each chapter as functions of time.
-  - `scenes/finale.js` plays the ending and the credits.
+  - `scenes/finale.js` plays the ending, side-on: a promenade by the sea, side-view umbrella sprites, rain on the water, the sunrise, and the credits. It sets `theme = 'ending'`, and the audio swaps the generated music for a short composed tune (`playEnding`).
   - `scenes/storymenu.js` is the chapter path.
 - **Saving:** progress (chapters unlocked, hearts, best time left, whether the ending was seen) is saved under `story`.
 - **Red is hers:** her umbrella uses the `love` palette, which isn't a player color, so nothing else in the game is ever red.
+
+**Obstacles** (`world/obstacles.js`) belong to the world. The scene sets a density each frame, and patterns (single, pair, chicane, narrowing) are spawned by distance, with a minimum opening and spacing set in `OBSTACLES`. Sprites are built from a few shapes (block, mound, log, posts) with details per kind. The street draw sorts obstacles together with the umbrellas by where they stand. Walkers step around them and spawn away from them, and the demo autopilot avoids them. What a touch does is the scene's `hitObstacle()`.
+
+**Two-player Arcade** (`scenes/duo.js`) is a subclass of the arcade scene with a second `Player`, a second force field (the scene's `fields` list), raw key presses (`input.hitKey`) for the two fire buttons, and its own `checkNpcs()`, which credits each CLOSE! to whoever squeezed past.
 
 **Walk Together** adds a second `Player` to Zen. Input keeps the raw key codes held, so `input.axisOf('wasd')` and `input.axisOf('arrows')` can steer the two separately. When the arrows go unused for a few seconds, a small steering rule walks her alongside you.
 

@@ -33,6 +33,12 @@ export class Autopilot {
           const need = (n.r + p.r) * 0.75 * (1.3 - ahead / LOOKAHEAD);
           room = Math.min(room, Math.abs(n.x - x) - need);
         }
+        // Obstacles coming down are just as much in the way.
+        for (const o of this.scene.world.obstacles.list) {
+          const ahead = p.y + 6 - o.y;
+          if (ahead < -o.h || ahead > LOOKAHEAD + 20) continue;
+          room = Math.min(room, Math.abs(x - o.x) - o.w / 2 - p.r * 0.7);
+        }
         const score = room - Math.abs(x - p.x) * 0.1;
         if (score > bestScore) [bestScore, best] = [score, x];
       }

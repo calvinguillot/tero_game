@@ -1,12 +1,13 @@
-import { CHAPTERS, starsFor } from "../game/chapters.js";
+import { CHAPTERS, STORY, speedAt, starsFor } from "../game/chapters.js";
 import { overlapRatio } from "../game/collision.js";
-import { loveUmbrella, drawKeepsake, drawRibbon } from "../game/love.js";
+import { loveUmbrella, drawKeepsake } from "../game/love.js";
 import { Decor } from "../world/decor.js";
 import { saveData } from "../core/storage.js";
 import { rand, clamp } from "../core/math.js";
 import { PAL, UMBRELLA_COLORS } from "../render/palette.js";
 import { drawText } from "../render/font.js";
 import { drawUmbrella } from "../render/umbrella.js";
+import { ellipseSprite } from "../render/pixels.js";
 import { PF_W, PF_H, GROUND_L, GROUND_R } from "../config.js";
 import { inPlayfield } from "./street.js";
 import { PlayScene } from "./play.js";
@@ -14,27 +15,26 @@ import { StoryMenuScene } from "./storymenu.js";
 import { VignetteScene } from "./vignette.js";
 import { FinaleScene } from "./finale.js";
 
-const BASE_SPEED = 34; // the street's pace when you just keep up
-const PUSH_LINE = 150; // walking above this line pushes the street faster
-const PUSH = 1.1; // extra px/s of street for each px above the line
-const MAX_PUSH = 56;
-const HIT_COST = 3; // seconds
-const KEEPSAKE_TIME = 2; // seconds
-const DROP_EVERY = 2.2; // seconds between keepsakes
+const RUN_OFF = 2.2; // seconds she takes to run off before the race starts
+const HOME_Y = 190; // the finish line arrives here when the distance is done
 const NEAR_MISS = 2.0;
-const HER_Y = 20; // she walks just ahead, near the top of the street
+const RED = UMBRELLA_COLORS.love;
 
 // The chapter being built: tuning() runs inside PlayScene's constructor,
 // before `this` holds anything of ours.
 let building = null;
 
-// Story mode: one chapter of "Finding Love". The place, hour and weather are
-// fixed; you have a distance to walk before the time runs out. Walking up the
-// street pushes it along faster (less time to see who's coming), a bump costs
-// three seconds, and what she leaves behind gives some back. Halfway there's
-// a ribbon: run out of time after it and you start again from there.
+// Story mode: one chapter of "Finding Love", a race down one street to a
+// finish line before the clock runs out. The street starts at the same pace in
+// every chapter and builds up to the chapter's top speed (see STORY in
+// chapters.js). A bump costs time; what she leaves behind gives some back.
+//
+// She's the reason you're running, not something to catch: she runs off at
+// the start, and after that you only glimpse her far up the street now and
+// then, as clearly as the weather allows. Run out of time and the chapter
+// starts over.
 export class StoryScene extends PlayScene {
-  constructor(game, index, { checkpoint = null } = {}) {
+  constructor(game, index) {
     building = CHAPTERS[index];
     super(game);
     const ch = building;
@@ -48,21 +48,24 @@ export class StoryScene extends PlayScene {
     w.zones = [{ loc: ch.place, b: Infinity }];
     w.decor = new Decor(w);
     w.animals.list = [];
-    this.timeLeft = checkpoint ? checkpoint.time : ch.limit;
-    this.walked = checkpoint ? ch.dist / 2 : 0;
-    this.checkpoint = checkpoint;
-    this.ribbon = null; // screen y of the halfway post while it passes
-    this.her = loveUmbrella(90, ch.special === "glance" ? 72 : HER_Y);
+    this.timeLeft = ch.limit;
+    this.walked = 0;
+    this.started = false; // the race begins once she's run off
+    this.her = loveUmbrella(90, 118);
+    this.her.away = false;
+    this.sightT = rand(...STORY.sightEvery);
+    this.sightLeft = 0;
     this.herTarget = 90;
-    this.herT = 2;
     this.mirages =
-      ch.special === "mirage" ? [loveUmbrella(50, HER_Y), loveUmbrella(130, HER_Y)] : [];
+      ch.special === "mirage"
+        ? [loveUmbrella(50, -40), loveUmbrella(130, -40)]
+        : [];
     this.keepsakes = [];
-    this.dropT = 1;
+    this.trailT = 1;
+    this.dropT = 0;
     this.sunny = false;
     this.endT = 0;
     this.stars = 0;
-    this.toasts.push({ text: ch.title, t: 0 });
   }
 
   tuning() {
@@ -104,7 +107,8 @@ export class StoryScene extends PlayScene {
     return { left: Math.max(0, this.timeLeft), progress: this.progress };
   }
 
-  // She's drawn and lit with you, when she can be seen.
+  // She's drawn with you when she can be seen (but not lit up at night: she's
+  // far away, and the dark should hide her a little).
   get walkers() {
     return this.her.alpha > 0.5 ? [this.player, this.her] : [this.player];
   }
@@ -113,15 +117,25 @@ export class StoryScene extends PlayScene {
     return this.ch.crowd;
   }
 
-  // On the last stretch to her, the crowd thins out to nobody.
   spawn() {
-    if (this.ch.special === "reunion" && this.progress > 0.5) return;
+    if (!this.started) return;
+    // On the last stretch at dawn the crowd thins out to nobody.
+    if (this.ch.special === "reunion" && this.progress > 0.55) return;
     super.spawn();
   }
 
   streetSpeed() {
-    const ahead = (PUSH_LINE - this.player.y) * PUSH;
-    return BASE_SPEED + clamp(ahead, 0, MAX_PUSH);
+    return speedAt(this.ch, this.progress);
+  }
+
+  obstacleDensity() {
+    return this.started && this.progress < 0.96 ? this.ch.obstacles : 0;
+  }
+
+  // Where the finish line is on screen: it reaches HOME_Y when the distance
+  // is done, and you finish when it passes under you.
+  get finishY() {
+    return HOME_Y - (this.ch.dist - this.walked);
   }
 
   update(dt) {
@@ -129,36 +143,33 @@ export class StoryScene extends PlayScene {
     super.update(dt);
     if (this.photo || this.paused) return;
     const sc = this.world.scrollY - before;
-    if (this.state === "play" && this.freeze <= 0) this.updateRun(dt, sc);
+    if (this.state === "play" && this.freeze <= 0) this.updateRace(dt, sc);
     else if (this.state !== "play") this.updateEnd(dt);
     this.updateHer(dt);
     this.updateKeepsakes(dt, sc);
-    if (this.ribbon !== null) {
-      this.ribbon += sc;
-      if (this.ribbon > PF_H + 20) this.ribbon = null;
-    }
   }
 
-  updateRun(dt, sc) {
+  updateRace(dt, sc) {
     const ch = this.ch;
+    if (!this.started) {
+      if (this.t < RUN_OFF) return;
+      this.started = true;
+      this.toasts.push({ text: "GO!", t: 0 });
+      this.sound("rushStart");
+      return;
+    }
     this.walked += sc;
     const was = this.timeLeft;
     this.timeLeft -= dt;
     // The last five seconds tick.
     if (this.timeLeft < 5 && Math.ceil(this.timeLeft) !== Math.ceil(was))
       this.sound("tick");
-    if (!this.checkpoint && this.walked >= ch.dist / 2) {
-      this.checkpoint = { time: this.timeLeft };
-      this.ribbon = -4;
-      this.toasts.push({ text: "HALFWAY", t: 0 });
-      this.sound("checkpoint");
-    }
     // At dawn the rain stops for the last of the way.
     if (ch.special === "reunion" && !this.sunny && this.progress > 0.75) {
       this.sunny = true;
       if (this.world.sky.setWeather("sunny", 5)) this.quietWeather++;
     }
-    if (this.walked >= ch.dist) this.arrive();
+    if (this.finishY >= this.player.y) this.arrive();
     else if (this.timeLeft <= 0) this.outOfTime();
   }
 
@@ -190,54 +201,74 @@ export class StoryScene extends PlayScene {
     const go = input.hit("confirm") || input.hit("action");
     if (input.hit("pause")) return this.leave();
     if (!go) return;
-    if (this.state === "timeup") {
-      const from = this.checkpoint;
-      this.game.go(new StoryScene(this.game, this.index, { checkpoint: from }));
-    } else if (this.index === CHAPTERS.length - 1) {
+    if (this.state === "timeup") this.restart();
+    else if (this.index === CHAPTERS.length - 1)
       this.game.go(new FinaleScene(this.game));
-    } else {
-      this.game.go(new VignetteScene(this.game, this.index + 1));
-    }
+    else this.game.go(new VignetteScene(this.game, this.index + 1));
   }
 
-  // She walks ahead, drifting from side to side. At the start of the first
-  // chapter she's close and looks back; in the storm only the lightning shows
-  // her; at the end of a chapter she slips away (or, at dawn, waits).
+  // At the start she's right there; she looks back at you, then runs off up
+  // the street and is gone. After that she shows only now and then, far up
+  // the street, and slips away again (at once, if you come too close).
   updateHer(dt) {
     const h = this.her;
-    const ch = this.ch;
     const sky = this.world.sky;
-    if ((this.herT -= dt) <= 0) {
-      this.herT = rand(2.5, 4);
-      this.herTarget = rand(GROUND_L + 22, GROUND_R - 22);
+    if (!this.started) {
+      const t = this.t;
+      h.tilt = t < 0.9 ? -3 * Math.min(1, t * 3) : 0;
+      if (t > 0.9) h.y -= (40 + (t - 0.9) * 260) * dt;
+      h.bobY = t > 0.9 ? (Math.floor(t * 14) % 2 ? -1 : 0) : 0;
+      h.alpha = 1;
+      return;
     }
-    const waiting = ch.special === "reunion" && this.state === "arrive";
-    let ty = HER_Y;
-    if (this.state === "arrive") ty = waiting ? 80 : -40;
-    else if (ch.special === "glance" && this.t < 3) ty = 72;
-    h.y += (ty - h.y) * Math.min(1, dt * (this.state === "arrive" ? 1.2 : 0.8));
-    h.x += clamp(this.herTarget - h.x, -18 * dt, 18 * dt);
-    const glancing = ch.special === "glance" && this.t > 0.8 && this.t < 2.6;
-    h.tilt = glancing ? -3 : Math.sin(this.t * 1.7) * 1.2;
+    // A glimpse every so often.
+    if (this.sightLeft > 0) {
+      this.sightLeft -= dt;
+      if (this.player.y < 80) this.sightLeft = 0;
+    } else if ((this.sightT -= dt) <= 0 && this.state === "play") {
+      this.sightT = rand(...STORY.sightEvery);
+      this.sightLeft = rand(...STORY.sightFor);
+      this.herTarget = rand(GROUND_L + 22, GROUND_R - 22);
+      h.x = this.herTarget;
+    }
+    const ty = this.sightLeft > 0 ? 14 : -40;
+    h.y += clamp(ty - h.y, -90 * dt, 45 * dt);
+    h.x += clamp(this.herTarget - h.x, -14 * dt, 14 * dt);
+    h.tilt = Math.sin(this.t * 1.7) * 1.2;
     h.bobY = Math.round(Math.sin(this.t * 6) * 0.6);
     h.open += ((sky.p.open > 0.5 ? 1 : 0.35) - h.open) * Math.min(1, dt * 3);
-    h.alpha = ch.special === "lightning" ? Math.min(1, sky.flash * 3) : 1;
-    // Mirages shimmer beside her and fade in and out.
+    h.alpha = this.visibility();
     this.mirages.forEach((m, i) => {
       m.x = clamp(h.x + (i ? 44 : -44), GROUND_L + 14, GROUND_R - 14);
       m.y = h.y + Math.sin(this.t * 2 + i) * 2;
       m.tilt = Math.sin(this.t * 3 + i * 2) * 2;
-      m.alpha = 0.25 + 0.3 * Math.abs(Math.sin(this.t * 1.3 + i * 1.7));
+      m.alpha = (0.25 + 0.3 * Math.abs(Math.sin(this.t * 1.3 + i * 1.7))) * h.alpha;
     });
   }
 
-  // She leaves a trail; walk over it to pick it up.
+  // How clearly she can be seen: storms show her only in the lightning, fog
+  // and the dark swallow her a little.
+  visibility() {
+    const sky = this.world.sky;
+    if (this.ch.special === "lightning" || sky.p.lightning > 0.5)
+      return Math.min(1, sky.flash * 3);
+    return clamp(1 - sky.p.fog * 0.35 - sky.night * 0.25, 0.4, 1);
+  }
+
+  // Her trail: things she drops while in view, and more of them waiting up
+  // the street between glimpses. Walk over them for time.
   updateKeepsakes(dt, sc) {
     const kind = this.ch.keepsake;
-    if (kind && this.state === "play" && (this.dropT -= dt) <= 0) {
-      this.dropT = DROP_EVERY;
-      const x = this.her.x + rand(-4, 4);
-      this.keepsakes.push({ kind, x, y: this.her.y + 14 });
+    if (this.started && this.state === "play") {
+      const h = this.her;
+      if (h.y > -6 && (this.dropT -= dt) <= 0) {
+        this.dropT = STORY.dropEvery;
+        this.keepsakes.push({ kind, x: h.x + rand(-4, 4), y: h.y + 14 });
+      }
+      if ((this.trailT -= dt) <= 0) {
+        this.trailT = STORY.trailEvery;
+        this.keepsakes.push({ kind, x: rand(GROUND_L + 16, GROUND_R - 16), y: -6 });
+      }
     }
     const p = this.player;
     for (const k of this.keepsakes) {
@@ -245,8 +276,8 @@ export class StoryScene extends PlayScene {
       const near = Math.abs(k.x - p.x) < 12 && Math.abs(k.y - (p.y + 10)) < 12;
       if (near && this.state === "play") {
         k.taken = true;
-        this.timeLeft += KEEPSAKE_TIME;
-        this.popup("+2 S", k.x, k.y - 8, { color: UMBRELLA_COLORS.love.light });
+        this.timeLeft += STORY.keepsakeTime;
+        this.popup(`+${STORY.keepsakeTime} S`, k.x, k.y - 8, { color: RED.light });
         this.sound("keepsake");
       }
     }
@@ -268,20 +299,27 @@ export class StoryScene extends PlayScene {
     }
   }
 
-  // A bump costs time, not a life.
-  bump(n) {
+  hitObstacle(p, o) {
+    if (p.invT > 0 || p.shieldT > 0) return;
+    this.bump(null, o);
+  }
+
+  // A bump (a walker, or an obstacle when `n` is null) costs time, not a life.
+  bump(n, from = n) {
     const p = this.player;
-    const dir = Math.sign(n.x - p.x) || 1;
-    n.touched = true;
-    n.knockV = dir * 70;
-    n.wob = 1;
-    n.flashT = 0.12;
+    const dir = Math.sign(from.x - p.x) || 1;
+    if (n) {
+      n.touched = true;
+      n.knockV = dir * 70;
+      n.wob = 1;
+      n.flashT = 0.12;
+    }
     p.vx -= dir * 80;
     p.hitT = 0.55;
     p.invT = this.d.invuln;
     p.flashT = 0.12;
-    this.timeLeft -= HIT_COST;
-    this.popup(`-${HIT_COST} S`, p.x, p.y - 30, { color: "#ff8a8a", scale: 2 });
+    this.timeLeft -= STORY.hitCost;
+    this.popup(`-${STORY.hitCost} S`, p.x, p.y - 30, { color: "#ff8a8a", scale: 2 });
     this.sound("hit");
     this.freeze = 0.08;
     this.hitFlash = 0.15;
@@ -301,15 +339,56 @@ export class StoryScene extends PlayScene {
     this.sound("close");
   }
 
+  // Her trail on the street, and the finish: a band of pale paving with red
+  // umbrellas painted on it.
   drawGround(ctx) {
     for (const k of this.keepsakes) drawKeepsake(ctx, k, this.world.sy);
-    if (this.ribbon !== null) drawRibbon(ctx, Math.round(this.ribbon));
+    const y = Math.round(this.finishY);
+    if (y < -12 || y > PF_H + 12) return;
+    ctx.fillStyle = "#d8e6ec";
+    ctx.fillRect(GROUND_L, y - 5, GROUND_R - GROUND_L, 10);
+    ctx.fillStyle = "#a8bcc6";
+    ctx.fillRect(GROUND_L, y - 5, GROUND_R - GROUND_L, 1);
+    ctx.fillRect(GROUND_L, y + 4, GROUND_R - GROUND_L, 1);
+    for (let x = GROUND_L + 10; x < GROUND_R - 6; x += 20) {
+      ctx.drawImage(ellipseSprite(3, 2, RED.base, true), x - 3, y - 3);
+      ctx.fillStyle = RED.dark;
+      ctx.fillRect(x, y - 1, 1, 3);
+    }
+  }
+
+  // Overhead: a string of red paper lanterns across the street above the
+  // finish, glowing at night.
+  drawLanterns(ctx) {
+    const y0 = Math.round(this.finishY) - 30;
+    if (y0 < -20 || y0 > PF_H) return;
+    const night = this.world.sky.night;
+    const sag = (x) => y0 + Math.round(Math.sin(((x - GROUND_L) / (GROUND_R - GROUND_L)) * Math.PI) * 6);
+    ctx.fillStyle = "#2e3640";
+    for (let x = 0; x < PF_W; x++) ctx.fillRect(x, sag(Math.max(GROUND_L, Math.min(GROUND_R, x))), 1, 1);
+    for (let x = GROUND_L + 8; x < GROUND_R - 4; x += 16) {
+      const y = sag(x) + 2;
+      if (night > 0.05) {
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = night * 0.8;
+        ctx.drawImage(ellipseSprite(6, 4, "#5a1a10", true), x - 6, y - 2);
+        ctx.globalCompositeOperation = "source-over";
+        ctx.globalAlpha = 1;
+      }
+      ctx.fillStyle = RED.outline;
+      ctx.fillRect(x - 2, y - 1, 5, 6);
+      ctx.fillStyle = RED.base;
+      ctx.fillRect(x - 1, y, 3, 4);
+      ctx.fillStyle = night > 0.3 ? "#ffd08a" : RED.light;
+      ctx.fillRect(x, y + 1, 1, 2);
+    }
   }
 
   draw(ctx, L) {
     super.draw(ctx, L);
     if (this.photo || this.paused) return;
     inPlayfield(ctx, L, () => {
+      this.drawLanterns(ctx);
       // Mirages are only half there.
       for (const m of this.mirages) {
         ctx.globalAlpha = m.alpha;
@@ -327,17 +406,15 @@ export class StoryScene extends PlayScene {
     ctx.fillStyle = PAL.overlay;
     ctx.fillRect(0, 60, PF_W, 112);
     const last = this.index === CHAPTERS.length - 1;
-    drawText(ctx, last ? "THERE SHE IS" : "SO CLOSE...", c, 72, PAL.text, {
-      ...opt,
-      scale: 2,
-    });
+    const title = last ? "THE COAST" : "MADE IT";
+    drawText(ctx, title, c, 72, PAL.text, { ...opt, scale: 2 });
     // Hearts for stars.
     for (let i = 0; i < 3; i++) {
-      const on = i < this.stars;
-      const color = on ? UMBRELLA_COLORS.love.base : PAL.textDim;
+      const color = i < this.stars ? RED.base : PAL.textDim;
       drawText(ctx, "*", c - 18 + i * 18, 96, color, { ...opt, scale: 3 });
     }
-    drawText(ctx, `${this.timeLeft.toFixed(1)} S TO SPARE`, c, 128, PAL.text, opt);
+    const spare = `${this.timeLeft.toFixed(1)} S TO SPARE`;
+    drawText(ctx, spare, c, 128, PAL.text, opt);
     if (Math.floor(this.endT * 2.5) % 2 === 0)
       drawText(ctx, "SPACE OR TAP TO GO ON", c, 152, PAL.text, opt);
   }
@@ -351,11 +428,9 @@ export class StoryScene extends PlayScene {
     drawText(ctx, "SHE'S GONE", c, 76, PAL.text, { ...opt, scale: 2 });
     drawText(ctx, "OUT OF TIME", c, 98, PAL.textDim, opt);
     if (this.endT > 0.8) {
-      const from = this.checkpoint ? "FROM THE RIBBON" : "FROM THE START";
       if (Math.floor(this.endT * 2.5) % 2 === 0)
         drawText(ctx, "SPACE OR TAP: TRY AGAIN", c, 140, PAL.text, opt);
-      drawText(ctx, from, c, 150, PAL.textDim, opt);
-      drawText(ctx, "ESC FOR CHAPTERS", c, 170, PAL.textDim, opt);
+      drawText(ctx, "ESC FOR CHAPTERS", c, 160, PAL.textDim, opt);
     }
     ctx.globalAlpha = 1;
   }

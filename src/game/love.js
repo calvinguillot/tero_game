@@ -1,5 +1,4 @@
 import { ellipseSprite } from '../render/pixels.js';
-import { GROUND_L } from '../config.js';
 
 const RED = '#ec3c48';
 const PINK = '#ffa0a4';
@@ -33,15 +32,4 @@ export function drawKeepsake(ctx, k, row, fade = 1) {
     ctx.fillRect(x + 1, y - 3, 1, 2);
   }
   ctx.globalAlpha = 1;
-}
-
-// The halfway checkpoint: a short post by the left wall with a red ribbon.
-export function drawRibbon(ctx, y) {
-  const x = GROUND_L + 3;
-  ctx.fillStyle = '#4a5664';
-  ctx.fillRect(x, y - 12, 2, 12);
-  ctx.fillStyle = RED;
-  ctx.fillRect(x - 2, y - 11, 6, 2);
-  ctx.fillRect(x + 2, y - 9, 1, 3);
-  ctx.fillRect(x - 1, y - 9, 1, 2);
 }

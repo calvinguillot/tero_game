@@ -83,6 +83,7 @@ function frame(now) {
   const world = game.scene.world ?? game.backdrop.world;
   audio.duck = !!game.scene.paused && !game.scene.photo;
   audio.rush = game.scene.rushT > 0 && !game.scene.demo;
+  audio.theme = game.scene.theme ?? null;
   audio.update(steps * STEP, world);
   // Draw the street where it is right now, not where the last step left it:
   // the time left over in `acc` moves the view ahead by up to one step.
