@@ -87,10 +87,18 @@ function landscape(ctx, s, input) {
   const { v, pressed } = controls(input);
   const accent = UMBRELLA_COLORS[s.color].base;
 
-  // Left: score, best, lives, then the stick. Zen keeps none of that.
+  // Left: score, best, lives, then the stick. Zen keeps none of that; Story
+  // shows the clock and how close you are to her.
   if (s.zen) {
     drawText(ctx, 'ZEN', 35, 18, PAL.text, { scale: 3, shadow: PAL.textShadow, align: 'center' });
-    label(ctx, 'JUST WALK', 35, 40);
+    label(ctx, s.together ? 'TOGETHER' : 'JUST WALK', 35, 40);
+    if (s.together) label(ctx, 'HER: ARROWS', 35, 50);
+  } else if (s.chapterInfo) {
+    const { left, progress } = s.chapterInfo;
+    label(ctx, 'TIME', 35, 9);
+    clock(ctx, s, left, 35, 18, 3, 'center');
+    label(ctx, 'TO HER', 35, 46);
+    toHer(ctx, 11, 56, 40, progress, s.t);
   } else {
     if (!s.title) {
       label(ctx, 'SCORE', 35, 9);
@@ -136,6 +144,9 @@ function portrait(ctx, s, input) {
   if (s.zen) {
     drawText(ctx, 'ZEN', 8, 8, PAL.text, { scale: 2, shadow: PAL.textShadow });
     if (s.timeName) drawText(ctx, s.timeName, 40, 10, PAL.textDim);
+  } else if (s.chapterInfo) {
+    clock(ctx, s, s.chapterInfo.left, 8, 8, 2, 'left');
+    toHer(ctx, 52, 11, 80, s.chapterInfo.progress, s.t);
   } else {
     if (!s.title) {
       score(ctx, s, 8, 8, 2, 'left');
@@ -195,6 +206,19 @@ function rushMeter(ctx, s, cx, y, w, compact = false) {
     label(ctx, `CLOSE ${r.count}/${r.every}`, cx, y);
     bar(ctx, x, barY, w, r.count / r.every, UMBRELLA_COLORS[s.color].light);
   }
+}
+
+// Story: seconds left, blinking red when it's nearly out.
+function clock(ctx, s, left, x, y, scale, align) {
+  const low = left < 10 && Math.floor(s.t * 4) % 2 === 0;
+  drawText(ctx, Math.ceil(left), x, y, low ? UMBRELLA_COLORS.love.light : PAL.text, { scale, shadow: PAL.textShadow, align });
+}
+
+// Story: a bar filling towards a red heart (the font's '*').
+function toHer(ctx, x, y, w, k, t) {
+  bar(ctx, x, y, w, k, UMBRELLA_COLORS.love.base);
+  const beat = Math.floor(t * 2) % 2 === 0 ? 0 : 1;
+  drawText(ctx, '*', x + w + 3, y - 2 - beat, UMBRELLA_COLORS.love.base, { shadow: PAL.textShadow });
 }
 
 function bar(ctx, x, y, w, k, color) {

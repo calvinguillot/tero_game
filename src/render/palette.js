@@ -39,6 +39,8 @@ export const UMBRELLA_COLORS = {
   purple: { light: '#bcaaff', base: '#8466ee', dark: '#5a3fc0', outline: '#2c1f6e', accent: '#ffffff' },
   lilac: { light: '#f7caff', base: '#e08cf6', dark: '#b45fd0', outline: '#62267a', accent: '#ffffff' },
   pink: { light: '#ffcad6', base: '#ff8fa8', dark: '#e05f7c', outline: '#7e2438', accent: '#ffffff' },
+  // The one you're looking for in Story mode. Nobody else is ever red.
+  love: { light: '#ffa0a4', base: '#ec3c48', dark: '#b4202e', outline: '#5c0e18', accent: '#ffffff' },
   // Passers-by stay muted so the player always stands out.
   npc: { light: '#c9dcef', base: '#a9c3df', dark: '#7e9cc0', outline: '#4f6e94', accent: '#e3ecf5' },
   npcSand: { light: '#e2dccf', base: '#c9c1b0', dark: '#a39a88', outline: '#6b6252', accent: '#f2eee6' },

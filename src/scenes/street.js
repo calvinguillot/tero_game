@@ -19,14 +19,17 @@ export function inPlayfield(ctx, L, fn, shake = 0) {
 // the hour is multiplied over everything, night lights and lightning are
 // added, and `overlay` (UI drawn in the street) goes on top.
 // `hidden` umbrellas still cast a shadow (used for the blinking player);
-// `glow` is kept bright at night (the player).
-export function drawStreet(ctx, world, umbrellas, { hidden = null, overlay = null, glow = null } = {}) {
+// `glow` (an umbrella, or a list: the players) is kept bright at night.
+// `ground` draws extra things on the street under the umbrellas.
+export function drawStreet(ctx, world, umbrellas, { hidden = null, overlay = null, glow = null, ground = null } = {}) {
+  if (Array.isArray(glow)) glow = glow.filter((u) => u !== hidden);
   world.drawGround(ctx);
   world.drawRipples(ctx);
   world.drawParticles(ctx, false);
   world.decor.drawShadows(ctx);
   world.decor.drawSide(ctx, false);
   world.animals.drawGround(ctx);
+  ground?.();
   const sorted = [...umbrellas].sort((a, b) => a.y - b.y);
   const row = (u) => (u.rides ? world.sy : Math.round);
   for (const u of sorted) drawShadow(ctx, u, world.locAt(u.y).shadow, row(u));

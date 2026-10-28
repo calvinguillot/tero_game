@@ -144,6 +144,35 @@ export class PlayScene {
     return spawnWeights(this.score, this.d);
   }
 
+  // How fast the street moves while playing. It speeds up while rushing,
+  // easing in and out.
+  streetSpeed(I) {
+    const r =
+      this.rushT > 0
+        ? Math.min(1, this.rushT / 0.5, (RUSH_TIME - this.rushT) / 0.5)
+        : 0;
+    const base = lerp(this.d.speedStart, this.d.speedMax, I);
+    return base * lerp(1, RUSH_SPEED, r);
+  }
+
+  // What steers the player: the keys, or the autopilot in the demo.
+  controls() {
+    return this.demo ? this.ai : this.game.input;
+  }
+
+  // Umbrellas the players walk under (Zen can add a second one).
+  get walkers() {
+    return [this.player];
+  }
+
+  // RESTART from the pause menu.
+  restart() {
+    this.game.go(new PlayScene(this.game));
+  }
+
+  // Extra things on the street under the umbrellas (Story's keepsakes).
+  drawGround() {}
+
   // MAIN MENU from the pause menu.
   leave() {
     this.game.go(new MenuScene(this.game));
@@ -220,7 +249,7 @@ export class PlayScene {
     input.hit("action");
     const item = items[sel];
     if (item === "RESUME") this.paused = false;
-    else if (item === "RESTART") this.game.go(new PlayScene(this.game));
+    else if (item === "RESTART") this.restart();
     else if (item === "PHOTO") this.startPhoto();
     else this.leave();
   }
@@ -249,9 +278,10 @@ export class PlayScene {
     const shot = document.createElement("canvas");
     shot.width = PF_W;
     shot.height = PF_H;
-    const umbrellas = this.npcs.concat(this.player);
+    const umbrellas = this.npcs.concat(this.walkers);
     drawStreet(shot.getContext("2d"), this.world, umbrellas, {
-      glow: this.player,
+      glow: this.walkers,
+      ground: () => this.drawGround(shot.getContext("2d")),
     });
     const big = document.createElement("canvas");
     big.width = PF_W * PHOTO_SCALE;
@@ -335,28 +365,15 @@ export class PlayScene {
     }
 
     const I = intensity(this.score);
-    if (playing) {
-      // The street speeds up while rushing, easing in and out.
-      const r =
-        this.rushT > 0
-          ? Math.min(1, this.rushT / 0.5, (RUSH_TIME - this.rushT) / 0.5)
-          : 0;
-      this.world.speed =
-        lerp(this.d.speedStart, this.d.speedMax, I) * lerp(1, RUSH_SPEED, r);
-    } else {
-      this.world.speed = lerp(this.world.speed, 12, dt * 2);
-    }
-    this.world.umbrellas = this.npcs.concat(this.player);
+    if (playing) this.world.speed = this.streetSpeed(I);
+    else this.world.speed = lerp(this.world.speed, 12, dt * 2);
+    this.world.umbrellas = this.npcs.concat(this.walkers);
     this.world.update(dt);
     this.handleSky();
     this.field.update(dt, this.world.speed * dt);
     for (const e of this.field.takeEvents())
       this.sound(e === "ready" ? "fieldReady" : "fieldFade");
-    this.player.update(
-      dt,
-      playing ? (this.demo ? this.ai : input) : null,
-      this.world,
-    );
+    this.player.update(dt, playing ? this.controls() : null, this.world);
     if (this.player.splashed) this.sound("puddle");
 
     if (playing) {
@@ -662,14 +679,15 @@ export class PlayScene {
     drawHud(ctx, L, this, this.game.input);
 
     const p = this.player;
-    const umbrellas = this.npcs.concat(p);
+    const umbrellas = this.npcs.concat(this.walkers);
     inPlayfield(
       ctx,
       L,
       () =>
         drawStreet(ctx, this.world, umbrellas, {
           hidden: p.visible ? null : p,
-          glow: p,
+          glow: this.walkers,
+          ground: () => this.drawGround(ctx),
           overlay: () => {
             if (this.rushT > 0) this.drawRushGlow(ctx);
             this.field.draw(ctx, p);
@@ -715,8 +733,9 @@ export class PlayScene {
   drawPhoto(ctx, L) {
     drawPhotoHud(ctx, L, this.savedT > 0, this.color);
     inPlayfield(ctx, L, () => {
-      drawStreet(ctx, this.world, this.npcs.concat(this.player), {
-        glow: this.player,
+      drawStreet(ctx, this.world, this.npcs.concat(this.walkers), {
+        glow: this.walkers,
+        ground: () => this.drawGround(ctx),
       });
       if (this.photoFlash > 0) {
         ctx.fillStyle = `rgba(255, 255, 255, ${this.photoFlash / 0.25})`;

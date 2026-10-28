@@ -30,6 +30,7 @@ export class Input {
     this.zoneAt = () => null;
     this.down = new Set();
     this.hits = new Set();
+    this.keys = new Set(); // raw key codes held, to tell WASD from the arrows
     this.stick = null; // { id, ox, oy, vx, vy, dir }
     this.buttonId = null;
     this.tap = null;
@@ -37,6 +38,7 @@ export class Input {
     addEventListener('keydown', (e) => {
       const a = KEYMAP[e.code];
       if (!a) return;
+      this.keys.add(e.code);
       e.preventDefault();
       if (!e.repeat) {
         this.hits.add(a);
@@ -46,10 +48,13 @@ export class Input {
     });
     addEventListener('keyup', (e) => {
       const a = KEYMAP[e.code];
-      if (a) this.down.delete(a);
+      this.keys.delete(e.code);
+      // An action stays held while another key for it is still down.
+      if (a && !Object.keys(KEYMAP).some((k) => KEYMAP[k] === a && this.keys.has(k))) this.down.delete(a);
     });
     addEventListener('blur', () => {
       this.down.clear();
+      this.keys.clear();
       this.stick = null;
       this.buttonId = null;
     });
@@ -128,6 +133,22 @@ export class Input {
     if (s && Math.hypot(s.vx, s.vy) > DEADZONE) return { x: s.vx, y: s.vy };
     let x = (this.down.has('right') ? 1 : 0) - (this.down.has('left') ? 1 : 0);
     let y = (this.down.has('down') ? 1 : 0) - (this.down.has('up') ? 1 : 0);
+    if (x && y) {
+      x *= Math.SQRT1_2;
+      y *= Math.SQRT1_2;
+    }
+    return { x, y };
+  }
+
+  // One player's direction when two share the keyboard: 'wasd' (which also
+  // takes the touch stick) or 'arrows'.
+  axisOf(set) {
+    const s = this.stick;
+    if (set === 'wasd' && s && Math.hypot(s.vx, s.vy) > DEADZONE) return { x: s.vx, y: s.vy };
+    const [u, l, d, r] = set === 'arrows' ? ['ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight'] : ['KeyW', 'KeyA', 'KeyS', 'KeyD'];
+    const k = this.keys;
+    let x = (k.has(r) ? 1 : 0) - (k.has(l) ? 1 : 0);
+    let y = (k.has(d) ? 1 : 0) - (k.has(u) ? 1 : 0);
     if (x && y) {
       x *= Math.SQRT1_2;
       y *= Math.SQRT1_2;

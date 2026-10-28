@@ -71,7 +71,7 @@ export function menuHud(game, backdrop) {
     location: backdrop.world.topLocation.name,
     timeName: backdrop.world.sky.timeName,
     weatherName: backdrop.world.sky.label(backdrop.world.locAt(150).precip === 'snow'),
-    level: s.mode === 'zen' ? 'ZEN' : DIFFICULTY[s.difficulty].name,
+    level: s.mode === 'arcade' ? DIFFICULTY[s.difficulty].name : s.mode.toUpperCase(),
     charge: 1,
     ready: true,
     t: backdrop.t,

@@ -4,7 +4,8 @@ import { LOCATIONS, LOCATION_ORDER } from "../world/locations.js";
 import { rand } from "../core/math.js";
 import { PAL } from "../render/palette.js";
 import { drawText } from "../render/font.js";
-import { PF_W, PF_H } from "../config.js";
+import { Player } from "../game/player.js";
+import { PF_W, PF_H, GROUND_L, GROUND_R } from "../config.js";
 import { inPlayfield } from "./street.js";
 import { PlayScene } from "./play.js";
 import { MenuScene } from "./menu.js";
@@ -32,6 +33,29 @@ export class ZenScene extends PlayScene {
     this.introT = 0;
     this.noteT = 0;
     this.summaryT = 0;
+    // Walk Together (unlocked by finishing the story): she walks with you.
+    // You take WASD (or the stick); she takes the arrow keys, and when nobody
+    // steers her she keeps you company on her own.
+    const { together } = game.data.settings;
+    this.partner = together && game.data.story.done ? new Player("love", "classic") : null;
+    this.herIdle = Infinity;
+    this.wasd = { axis: () => game.input.axisOf("wasd") };
+    if (this.partner) {
+      this.player.x = 72;
+      this.partner.x = 108;
+    }
+  }
+
+  get together() {
+    return !!this.partner;
+  }
+
+  get walkers() {
+    return this.partner ? [this.player, this.partner] : [this.player];
+  }
+
+  controls() {
+    return this.partner ? this.wasd : this.game.input;
   }
 
   tuning() {
@@ -73,6 +97,7 @@ export class ZenScene extends PlayScene {
     const before = this.world.scrollY;
     super.update(dt);
     if (this.photo || this.paused) return;
+    if (this.partner) this.updatePartner(dt);
     if (this.state === "summary") return this.updateSummary(dt);
     this.introT += dt;
     this.walked += this.world.scrollY - before;
@@ -95,6 +120,38 @@ export class ZenScene extends PlayScene {
     }
   }
 
+  updatePartner(dt) {
+    const q = this.partner;
+    const keys = this.game.input.axisOf("arrows");
+    this.herIdle = keys.x || keys.y ? 0 : this.herIdle + dt;
+    const steer = this.herIdle > 2.5 ? this.besideYou() : keys;
+    const walking = this.state === "play" ? { axis: () => steer } : null;
+    q.update(dt, walking, this.world);
+    // Two umbrellas can't quite share the same spot.
+    const p = this.player;
+    const dx = q.x - p.x;
+    if (Math.abs(dx) < 20 && Math.abs(q.y - p.y) < 10) {
+      const push = (dx >= 0 ? 1 : -1) * 30 * dt;
+      q.x += push;
+      p.x -= push;
+    }
+  }
+
+  // Left to herself she walks beside you, at your pace, on whichever side
+  // has room.
+  besideYou() {
+    const p = this.player;
+    const q = this.partner;
+    let side = q.x >= p.x ? 1 : -1;
+    if (p.x + side * 26 > GROUND_R - 14 || p.x + side * 26 < GROUND_L + 14) side = -side;
+    const dx = p.x + side * 26 - q.x;
+    const dy = p.y - q.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 3) return { x: 0, y: 0 };
+    const k = Math.min(1, d / 24);
+    return { x: (dx / d) * k, y: (dy / d) * k };
+  }
+
   updateSummary(dt) {
     const { input } = this.game;
     this.summaryT += dt;
@@ -106,17 +163,18 @@ export class ZenScene extends PlayScene {
   // Brushing past someone: both umbrellas wobble apart and a ripple spreads.
   // Nothing is lost.
   checkNpcs() {
-    const p = this.player;
-    for (const n of this.npcs) {
-      if (n.touched || n.y < 0) continue;
-      if (overlapRatio(p, n, this.d.hitScale) >= 1) continue;
-      const dir = Math.sign(n.x - p.x) || 1;
-      n.touched = true;
-      n.knockV = dir * 50;
-      n.wob = 1;
-      p.vx -= dir * 60;
-      this.world.addRipple(p.x, p.y + 10, 12, 2, 1);
-      this.sound("bump");
+    for (const p of this.walkers) {
+      for (const n of this.npcs) {
+        if (n.touched || n.y < 0) continue;
+        if (overlapRatio(p, n, this.d.hitScale) >= 1) continue;
+        const dir = Math.sign(n.x - p.x) || 1;
+        n.touched = true;
+        n.knockV = dir * 50;
+        n.wob = 1;
+        p.vx -= dir * 60;
+        this.world.addRipple(p.x, p.y + 10, 12, 2, 1);
+        this.sound("bump");
+      }
     }
   }
 

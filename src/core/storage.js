@@ -2,7 +2,10 @@ const KEY = 'rainyday.v1';
 
 const DEFAULTS = {
   version: 1,
-  settings: { mode: 'arcade', color: 'mint', style: 'classic', difficulty: 'normal', initials: 'AAA', sound: true, music: true, rain: true, fx: true, shake: true, flash: true, dayNight: true },
+  // story: chapters unlocked, best stars and time left per chapter, and
+  // whether the ending has been seen (it unlocks Walk Together in Zen).
+  story: { unlocked: 1, stars: [], best: [], done: false },
+  settings: { together: true, mode: 'arcade', color: 'mint', style: 'classic', difficulty: 'normal', initials: 'AAA', sound: true, music: true, rain: true, fx: true, shake: true, flash: true, dayNight: true },
   highScores: { arcade: { easy: [], normal: [], hard: [] } },
 };
 

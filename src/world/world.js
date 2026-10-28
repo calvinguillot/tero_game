@@ -459,10 +459,8 @@ export class World {
       ctx.fillRect(Math.round(x) - 1, Math.round(y), 3, 1);
     }
     ctx.globalCompositeOperation = 'source-over';
-    if (glow) {
-      ctx.globalAlpha = night * 0.55;
-      drawUmbrella(ctx, glow);
-    }
+    ctx.globalAlpha = night * 0.55;
+    for (const u of [].concat(glow ?? [])) drawUmbrella(ctx, u);
     ctx.globalAlpha = 1;
   }
 

@@ -241,6 +241,22 @@ export class AudioEngine {
     this.noise({ f0: 700, q: 1.2, dur: 0.06, vol: 0.05 });
   }
 
+  // Story: picking up something she left behind.
+  keepsake() {
+    this.tone({ type: 'sine', f0: 1175, dur: 0.18, vol: 0.08 });
+    this.tone({ type: 'sine', f0: 1568, dur: 0.3, vol: 0.07, at: 0.08 });
+  }
+
+  // Story: the last seconds ticking away.
+  tick() {
+    this.tone({ type: 'square', f0: 1400, dur: 0.025, vol: 0.04 });
+  }
+
+  // Story: a chapter's halfway ribbon.
+  checkpoint() {
+    [0, 4, 7].forEach((n, i) => this.tone({ type: 'triangle', f0: semis(659, n), dur: 0.14, vol: 0.08, at: i * 0.07 }));
+  }
+
   // Photo mode: a camera click.
   shutter() {
     this.noise({ type: 'highpass', f0: 3000, dur: 0.03, vol: 0.15 });

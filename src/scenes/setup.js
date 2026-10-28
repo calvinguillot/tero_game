@@ -10,6 +10,7 @@ import { menuHud, heroUmbrella } from './backdrop.js';
 import { MenuScene } from './menu.js';
 import { PlayScene } from './play.js';
 import { ZenScene } from './zen.js';
+import { StoryMenuScene } from './storymenu.js';
 
 const LEVEL_HELP = {
   easy: ['SLOWER CROWD, SOFTER HITBOX.', 'FIELD RECHARGES IN 8 S.'],
@@ -20,10 +21,13 @@ const LEVEL_HELP = {
 const MODE_HELP = {
   arcade: ['DODGE THE CROWD, SCORE,', 'CHASE THE HIGH SCORES.'],
   zen: ['NO SCORE, NO LIVES.', 'JUST WALK IN THE RAIN.'],
+  story: ['FOLLOW THE RED UMBRELLA', 'THROUGH ONE DAY AND NIGHT.'],
 };
 
 const ROWS = [
-  { key: 'mode', label: 'MODE', list: ['arcade', 'zen'], show: (v) => v.toUpperCase(), help: (v) => MODE_HELP[v] },
+  { key: 'mode', label: 'MODE', list: ['arcade', 'zen', 'story'], show: (v) => v.toUpperCase(), help: (v) => MODE_HELP[v] },
+  // Zen only, once the story has been finished.
+  { key: 'together', label: 'TOGETHER', list: [true, false], show: (v) => (v ? 'ON' : 'OFF'), help: () => ['WALK WITH HER. YOU TAKE', 'WASD, SHE TAKES THE ARROWS.'] },
   { key: 'color', label: 'COLOR', list: PLAYER_COLORS, show: (v) => v.toUpperCase(), help: () => ['YOUR UMBRELLA COLOR.', 'THE STICK AND BUTTON MATCH.'] },
   { key: 'style', label: 'STYLE', list: STYLE_KEYS, show: (v) => STYLES[v].name, help: () => ['SHAPE AND PATTERN OF', 'YOUR UMBRELLA.'] },
   { key: 'difficulty', label: 'LEVEL', list: DIFFICULTY_KEYS, show: (v) => DIFFICULTY[v].name, help: (v) => LEVEL_HELP[v] },
@@ -49,8 +53,13 @@ export class SetupScene {
 
   // The rows on show (the last one is START).
   get rows() {
-    const zen = this.game.data.settings.mode === 'zen';
-    return ROWS.filter((r) => !(zen && r.key === 'difficulty'));
+    const { mode } = this.game.data.settings;
+    const unlocked = this.game.data.story.done;
+    return ROWS.filter((r) => {
+      if (r.key === 'difficulty') return mode === 'arcade';
+      if (r.key === 'together') return mode === 'zen' && unlocked;
+      return true;
+    });
   }
 
   change(dir) {
@@ -79,8 +88,9 @@ export class SetupScene {
     if (input.hit('right')) this.change(1);
     if (act) {
       if (sel === start) {
-        const zen = this.game.data.settings.mode === 'zen';
-        return this.game.go(zen ? new ZenScene(this.game) : new PlayScene(this.game));
+        const { mode } = this.game.data.settings;
+        const next = mode === 'zen' ? new ZenScene(this.game) : mode === 'story' ? new StoryMenuScene(this.game) : new PlayScene(this.game);
+        return this.game.go(next);
       }
       // Tapping the row you're on steps its value; Space/Enter does too.
       if (sel === prev) this.change(1);

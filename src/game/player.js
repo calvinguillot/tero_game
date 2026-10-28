@@ -70,7 +70,7 @@ export class Player {
       k *= 0.35;
     }
     // During a SUN RUSH you run: faster, umbrella shut, trailing sparkles.
-    // On Hard, wading through puddles and mud slows you a little.
+    // Wading through puddles and mud slows you a little (more on Hard).
     let max = MAX_SPEED * (this.rush ? 1.35 : 1);
     if (world.wetSlow < 1 && !this.rush && world.isWet(this.x, this.y + 13)) max *= world.wetSlow;
     this.vx += (a.x * max - this.vx) * k;

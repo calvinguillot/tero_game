@@ -6,9 +6,16 @@ It runs in the browser using plain JavaScript and the Canvas 2D API. All of the 
 
 ## Features
 
-- **Arcade mode**: three lives, a crowd that speeds up as you score, an extra life every 100 points (four at most), and an arcade-style high-score table for each difficulty where you sign your three initials (it also records each run's CLOSE! count). On Hard, puddles and mud slow you down a little.
+- **Arcade mode**: three lives, a crowd that speeds up as you score, an extra life every 100 points (four at most), and an arcade-style high-score table for each difficulty where you sign your three initials (it also records each run's CLOSE! count). Puddles, mud and drifts slow you down a little, and a bit more on Hard.
 - **Force field**: a shockwave that pushes nearby umbrellas away and snaps them shut, and sweeps the water aside. It recharges over time, and near misses (**CLOSE!**) give it a boost.
 - **SUN RUSH**: every 20 CLOSE! near misses (15 on Easy, 25 on Hard), the sun breaks through for five seconds, even at night. Everyone shuts their umbrella, you run with your own umbrella closed and glowing, nothing can hurt you, and every umbrella you pass or bump scores.
+- **Story mode, "Finding Love"**: eight chapters across one day and night, following a red umbrella through every place in town.
+  - **The chase:** each chapter has a fixed hour and weather, and a distance to walk before time runs out. Walking up the street pushes it along faster, but leaves you less time to see who's coming.
+  - **Time instead of lives:** a bump costs 3 seconds. The ripples, petals and footprints she leaves behind add 2 seconds each.
+  - **Halfway:** a red ribbon marks the checkpoint; run out of time after it and you start again from there.
+  - **Hearts:** 1–3 per chapter, by the time you have to spare.
+  - **No words:** short scenes between chapters show where she went, and the dawn finale brings you together.
+- **Walk Together** (unlocked by finishing the story): in Zen, she walks with you. You use WASD or the stick and she uses the arrow keys, so two people can play on one keyboard. Left alone, she walks beside you at your pace.
 - **Zen mode**: nothing to win and nothing to lose. There's no score, lives, force field or game over, and bumping someone is just a wobble. The crowd keeps Easy's gentle pace with no hurriers, the day is twice as long, and the weather (storms included) changes half as often. Drops on your umbrella play soft notes in the music's key. When you leave, the game tells you how far you walked and through how many places; it isn't saved anywhere.
 - **Photo mode**: in any mode, pause and pick PHOTO (or press C). The street holds still while the rain keeps falling, and Space or a tap saves a PNG of the playfield at 4× size.
 - **Attract mode**: leave the title screen alone and the game plays a demo of itself.
@@ -77,7 +84,7 @@ src/
   render/             Low-res display, palettes, pixel buffer, umbrella and text sprites, logo
   world/              The street: rain, water, zones and walls, props, animals, sky and weather
   game/               Player, walkers, force field, collisions, difficulty
-  scenes/             Splash, menu, run setup, settings, guide, scores, credits, play, zen, shared street drawing
+  scenes/             Splash, menu, run setup, settings, guide, scores, credits, play, zen, story (chapters, scenes between, finale), shared street drawing
   ui/                 HUD panels, arcade stick and button, menu helpers
   audio/              Web Audio synth: effects, ambience, music
 refs/                 Original concept screenshots
@@ -99,6 +106,22 @@ A **scene** is any object with `update(dt)` and `draw(ctx, layout)`; the game ha
 - `leave()`: shows the walk summary.
 
 Places change by distance walked rather than by score. The world counts drops that land on the player's canopy, and the scene turns a few of them into notes (`audio.rainNote`).
+
+**Story** (`scenes/story.js`, chapters in `game/chapters.js`) is another subclass of the arcade scene.
+- **What it overrides:**
+  - `tuning()`: the chapter's crowd and weather.
+  - `streetSpeed()`: a base pace, plus a push the higher up the screen you walk.
+  - `checkNpcs()`: a bump costs time.
+  - `walkers`: she's drawn and lit with you, and in the storm only while lightning flashes.
+- **What it adds:** the clock, the halfway checkpoint, her movement, the keepsakes she drops (they ride the street and are drawn through a `ground` hook under the umbrellas), and the end cards.
+- **Around it:**
+  - `scenes/vignette.js` scripts the wordless scene before each chapter as functions of time.
+  - `scenes/finale.js` plays the ending and the credits.
+  - `scenes/storymenu.js` is the chapter path.
+- **Saving:** progress (chapters unlocked, hearts, best time left, whether the ending was seen) is saved under `story`.
+- **Red is hers:** her umbrella uses the `love` palette, which isn't a player color, so nothing else in the game is ever red.
+
+**Walk Together** adds a second `Player` to Zen. Input keeps the raw key codes held, so `input.axisOf('wasd')` and `input.axisOf('arrows')` can steer the two separately. When the arrows go unused for a few seconds, a small steering rule walks her alongside you.
 
 **Photo mode** lives in the arcade scene, so every mode has it. While it's on, the scene runs only `world.stepWater(dt, 0)`, the rain, drips, ripples and spray with no scrolling. The panels show only the controls. Saving redraws the street into a playfield-sized canvas, scales it up 4× without smoothing and downloads it as a PNG. After 12 idle seconds on the splash screen, the play scene starts in **demo mode**: an `Autopilot` (`game/autopilot.js`) stands in for the input. Ten times a second it picks the spot with the most room among the walkers coming down, and it fires the force field when something is about to hit. The demo plays silently, never touches the high scores, and returns to the title after 30 seconds or on any key. `game.go(scene)` switches scenes behind a curtain of falling rain: columns of background color drop down, the scene swaps while the screen is covered, and the columns lift away.
 
